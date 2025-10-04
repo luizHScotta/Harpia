@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Satellite, Search, Loader2, Calendar, MapPin, Image } from "lucide-react";
+import { Satellite, Search, Loader2, Calendar, MapPin, Image, Minimize2, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -28,6 +28,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<Sentinel1Result[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   
   // Default to last 90 days
   const getDefaultDates = () => {
@@ -107,10 +108,23 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
     <div className="absolute top-20 right-4 w-80 z-10">
       <Card className="bg-card/95 backdrop-blur-sm border-border shadow-elevated">
         <div className="p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Satellite className="h-5 w-5 text-sar-primary" />
-            <h3 className="font-semibold text-foreground">Busca Sentinel-1</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Satellite className="h-5 w-5 text-sar-primary" />
+              <h3 className="font-semibold text-foreground">Busca Sentinel-1</h3>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setIsMinimized(!isMinimized)}
+            >
+              {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+            </Button>
           </div>
+
+          {!isMinimized && (
+            <>
 
           <div className="space-y-2">
             <div className="space-y-1">
@@ -230,6 +244,8 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
                 </Card>
               ))}
             </div>
+          )}
+          </>
           )}
         </div>
       </Card>

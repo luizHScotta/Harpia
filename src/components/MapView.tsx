@@ -5,6 +5,7 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { Layer } from "./LayerControl";
 import Sentinel1Search from "./Sentinel1Search";
+import { toast } from "sonner";
 
 // Mapbox token configured
 const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
@@ -184,33 +185,72 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     // 3. Update layer opacity based on slider values
   }, [layers, mapLoaded]);
 
-  const handleResultSelect = (result: any) => {
+  const handleResultSelect = async (result: any) => {
     if (!map.current) return;
     
+    console.log("Selected result:", result);
+
     // Zoom to result bbox
     const [minLng, minLat, maxLng, maxLat] = result.bbox;
     map.current.fitBounds(
       [[minLng, minLat], [maxLng, maxLat]],
-      { padding: 50 }
+      { padding: 50, duration: 1000 }
     );
 
-    // Add satellite layer to map
-    const layerId = `sentinel1-${result.id}`;
-    
-    // Check if result has rendered_preview asset
-    if (result.assets?.rendered_preview?.href) {
-      const newLayer: SatelliteLayer = {
-        id: layerId,
-        type: 'sentinel1',
-        url: result.assets.rendered_preview.href,
-        bbox: result.bbox,
-        opacity: 0.7
-      };
+    // Fetch item data from Planetary Computer to get signed assets
+    try {
+      const itemUrl = `https://planetarycomputer.microsoft.com/api/stac/v1/collections/${result.collection}/items/${result.id}`;
+      const response = await fetch(itemUrl);
+      const item = await response.json();
+
+      console.log("Item data:", item);
+
+      // Sign the assets using Planetary Computer signing service
+      const signResponse = await fetch('https://planetarycomputer.microsoft.com/api/sas/v1/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item)
+      });
+      const signedItem = await signResponse.json();
+
+      console.log("Signed item:", signedItem);
+
+      // Get the rendered preview or use VH asset with TiTiler
+      let tileUrl = '';
       
-      setSatelliteLayers(prev => {
-        // Remove old layers, keep only the latest 3
-        const updated = [...prev, newLayer].slice(-3);
-        return updated;
+      if (signedItem.assets?.rendered_preview?.href) {
+        // Use rendered preview if available
+        tileUrl = signedItem.assets.rendered_preview.href;
+      } else if (signedItem.assets?.vh?.href) {
+        // Use TiTiler to render VH asset as tiles
+        const assetHref = signedItem.assets.vh.href;
+        tileUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?collection=${result.collection}&item=${result.id}&assets=vh&nodata=0&rescale=0,1000`;
+      }
+
+      if (tileUrl) {
+        const layerId = `sentinel1-${result.id}`;
+        const newLayer: SatelliteLayer = {
+          id: layerId,
+          type: 'sentinel1',
+          url: tileUrl,
+          bbox: result.bbox,
+          opacity: 0.7
+        };
+        
+        setSatelliteLayers(prev => {
+          // Remove old layers, keep only the latest 3
+          const updated = [...prev, newLayer].slice(-3);
+          return updated;
+        });
+
+        toast.success("Camada adicionada ao mapa", {
+          description: `Sentinel-1 ${result.platform} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
+        });
+      }
+    } catch (error) {
+      console.error("Error loading satellite layer:", error);
+      toast.error("Erro ao carregar imagem", {
+        description: "Não foi possível carregar a camada de satélite"
       });
     }
 
@@ -219,7 +259,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       name: result.id,
       date: new Date(result.datetime).toLocaleDateString('pt-BR'),
       platform: result.platform,
-      polarizations: result.polarizations.join(', '),
+      polarizations: result.polarizations?.join(', ') || 'N/A',
       mode: result.instrumentMode,
       collection: result.collection
     });

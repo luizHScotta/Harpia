@@ -1,13 +1,17 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { 
   MapPin, 
   Users, 
   Droplets, 
   Leaf, 
   Thermometer,
-  AlertTriangle 
+  AlertTriangle,
+  Minimize2,
+  Maximize2
 } from "lucide-react";
 
 interface InfoPanelProps {
@@ -16,6 +20,8 @@ interface InfoPanelProps {
 }
 
 const InfoPanel = ({ data, isOpen }: InfoPanelProps) => {
+  const [isMinimized, setIsMinimized] = useState(false);
+
   if (!isOpen || !data) return null;
 
   const getRiskColor = (risk: string | undefined) => {
@@ -35,9 +41,22 @@ const InfoPanel = ({ data, isOpen }: InfoPanelProps) => {
 
   return (
     <div className="w-96 bg-card border-l border-border h-full overflow-y-auto">
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div>
+      <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-card z-10">
+        <h3 className="font-semibold text-foreground">Informações da Área</h3>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setIsMinimized(!isMinimized)}
+        >
+          {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+        </Button>
+      </div>
+      
+      {!isMinimized && (
+        <div className="p-6 space-y-6">
+          {/* Header */}
+          <div>
           <div className="flex items-start gap-3 mb-3">
             <MapPin className="h-5 w-5 text-primary mt-1" />
             <div className="flex-1">
@@ -132,7 +151,8 @@ const InfoPanel = ({ data, isOpen }: InfoPanelProps) => {
             Nenhum foco de calor detectado nos últimos 7 dias nesta área.
           </p>
         </Card>
-      </div>
+        </div>
+      )}
     </div>
   );
 };
