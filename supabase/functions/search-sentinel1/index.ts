@@ -8,9 +8,10 @@ interface SearchRequest {
     type: string;
     coordinates: number[][][];
   };
-  startDate?: string;
-  endDate?: string;
+  startDate: string;
+  endDate: string;
   maxResults?: number;
+  collection?: string;
 }
 
 Deno.serve(async (req) => {
@@ -20,11 +21,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { aoi, startDate, endDate, maxResults = 10 }: SearchRequest = await req.json();
+    const { aoi, startDate, endDate, maxResults = 20, collection = "sentinel-1-rtc" }: SearchRequest = await req.json();
 
-    console.log("Searching Sentinel-1 with AOI:", aoi);
+    console.log(`Searching ${collection} with AOI:`, aoi);
+    console.log(`Date range: ${startDate} to ${endDate}`);
 
     // Build CQL2-JSON filter for Planetary Computer STAC API
+    const daterange = { interval: [startDate, endDate] };
+    
     const filter = {
       op: "and",
       args: [
@@ -33,29 +37,15 @@ Deno.serve(async (req) => {
           args: [{ property: "geometry" }, aoi]
         },
         {
-          op: "=",
-          args: [{ property: "collection" }, "sentinel-1-grd"]
+          op: "anyinteracts",
+          args: [{ property: "datetime" }, daterange]
         },
         {
-          op: "in",
-          args: [
-            { property: "sar:polarizations" },
-            [["VV", "VH"]]
-          ]
+          op: "=",
+          args: [{ property: "collection" }, collection]
         }
       ]
     };
-
-    // Add date filter if provided
-    if (startDate && endDate) {
-      filter.args.push({
-        op: "t_intersects",
-        args: [
-          { property: "datetime" },
-          [startDate, endDate]
-        ]
-      } as any);
-    }
 
     // Search Planetary Computer STAC API
     const stacUrl = "https://planetarycomputer.microsoft.com/api/stac/v1/search";
@@ -85,20 +75,30 @@ Deno.serve(async (req) => {
     
     console.log(`Found ${stacData.features?.length || 0} Sentinel-1 scenes`);
 
-    // Transform results to simpler format
-    const results = stacData.features?.map((feature: any) => ({
-      id: feature.id,
-      datetime: feature.properties.datetime,
-      geometry: feature.geometry,
-      cloudCover: feature.properties["eo:cloud_cover"],
-      polarizations: feature.properties["sar:polarizations"],
-      platform: feature.properties.platform,
-      constellation: feature.properties.constellation,
-      instrumentMode: feature.properties["sar:instrument_mode"],
-      productType: feature.properties["sar:product_type"],
-      assets: feature.assets,
-      bbox: feature.bbox
-    })) || [];
+    // Transform results to simpler format with all necessary data
+    const results = stacData.features?.map((feature: any) => {
+      // Get asset keys for easier access
+      const assetKeys = Object.keys(feature.assets || {});
+      
+      return {
+        id: feature.id,
+        datetime: feature.properties.datetime,
+        geometry: feature.geometry,
+        cloudCover: feature.properties["eo:cloud_cover"],
+        polarizations: feature.properties["sar:polarizations"],
+        platform: feature.properties.platform,
+        constellation: feature.properties.constellation,
+        instrumentMode: feature.properties["sar:instrument_mode"],
+        productType: feature.properties["sar:product_type"],
+        collection: feature.collection,
+        assets: feature.assets,
+        assetKeys: assetKeys,
+        bbox: feature.bbox,
+        links: feature.links,
+        stac_version: feature.stac_version,
+        type: feature.type
+      };
+    }) || [];
 
     return new Response(
       JSON.stringify({ 

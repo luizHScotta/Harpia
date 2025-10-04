@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Satellite, Search, Loader2, Calendar, MapPin } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Satellite, Search, Loader2, Calendar, MapPin, Image } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -25,6 +27,21 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<Sentinel1Result[]>([]);
   const [showResults, setShowResults] = useState(false);
+  
+  // Default to last 90 days
+  const getDefaultDates = () => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 90);
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0]
+    };
+  };
+  
+  const defaults = getDefaultDates();
+  const [startDate, setStartDate] = useState(defaults.start);
+  const [endDate, setEndDate] = useState(defaults.end);
 
   const handleSearch = async () => {
     if (!aoi) {
@@ -38,16 +55,17 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
     setShowResults(true);
 
     try {
-      // Get last 90 days
-      const endDate = new Date().toISOString();
-      const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+      // Convert dates to ISO format with time
+      const startISO = new Date(startDate + 'T00:00:00Z').toISOString();
+      const endISO = new Date(endDate + 'T23:59:59Z').toISOString();
 
       const { data, error } = await supabase.functions.invoke('search-sentinel1', {
         body: {
           aoi,
-          startDate,
-          endDate,
-          maxResults: 20
+          startDate: startISO,
+          endDate: endISO,
+          maxResults: 50,
+          collection: 'sentinel-1-rtc'
         }
       });
 
@@ -56,7 +74,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
       if (data.success) {
         setResults(data.results);
         toast.success(`${data.count} cenas encontradas`, {
-          description: "Últimos 90 dias de dados Sentinel-1",
+          description: `Sentinel-1 RTC de ${startDate} a ${endDate}`,
         });
       } else {
         throw new Error(data.error);
@@ -88,7 +106,31 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
         <div className="p-4 space-y-3">
           <div className="flex items-center gap-2">
             <Satellite className="h-5 w-5 text-sar-primary" />
-            <h3 className="font-semibold text-foreground">Busca Sentinel-1</h3>
+            <h3 className="font-semibold text-foreground">Busca Sentinel-1 RTC</h3>
+          </div>
+
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label htmlFor="startDate" className="text-xs">Data Inicial</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+            
+            <div className="space-y-1">
+              <Label htmlFor="endDate" className="text-xs">Data Final</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="text-xs"
+              />
+            </div>
           </div>
 
           <Button
@@ -133,10 +175,10 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
               {results.map((result) => (
                 <Card
                   key={result.id}
-                  className="p-3 cursor-pointer hover:bg-accent/50 transition-colors"
+                  className="p-3 cursor-pointer hover:bg-accent/50 transition-colors border-l-2 border-l-sar-primary"
                   onClick={() => onResultSelect(result)}
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="h-3 w-3 text-muted-foreground" />
@@ -153,7 +195,14 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
                       <MapPin className="h-3 w-3" />
                       <span>{result.instrumentMode}</span>
                       <span>•</span>
-                      <span>{result.polarizations.join(', ')}</span>
+                      <span>{result.polarizations?.join(', ') || 'N/A'}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs">
+                      <Image className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">
+                        {(result as any).assetKeys?.length || 0} assets disponíveis
+                      </span>
                     </div>
 
                     <div className="text-xs text-muted-foreground truncate" title={result.id}>
