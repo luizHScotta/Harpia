@@ -14,12 +14,22 @@ interface MapViewProps {
   onFeatureClick: (data: any) => void;
 }
 
+interface SatelliteLayer {
+  id: string;
+  type: 'sentinel1' | 'sentinel2';
+  url: string;
+  bbox: number[];
+  opacity?: number;
+}
+
 const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const draw = useRef<MapboxDraw | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentAOI, setCurrentAOI] = useState<any>(null);
+  const [satelliteLayers, setSatelliteLayers] = useState<SatelliteLayer[]>([]);
+  const addedLayerIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -184,15 +194,95 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       { padding: 50 }
     );
 
+    // Add satellite layer to map
+    const layerId = `sentinel1-${result.id}`;
+    
+    // Check if result has rendered_preview asset
+    if (result.assets?.rendered_preview?.href) {
+      const newLayer: SatelliteLayer = {
+        id: layerId,
+        type: 'sentinel1',
+        url: result.assets.rendered_preview.href,
+        bbox: result.bbox,
+        opacity: 0.7
+      };
+      
+      setSatelliteLayers(prev => {
+        // Remove old layers, keep only the latest 3
+        const updated = [...prev, newLayer].slice(-3);
+        return updated;
+      });
+    }
+
     // Show result info
     onFeatureClick({
       name: result.id,
       date: new Date(result.datetime).toLocaleDateString('pt-BR'),
       platform: result.platform,
       polarizations: result.polarizations.join(', '),
-      mode: result.instrumentMode
+      mode: result.instrumentMode,
+      collection: result.collection
     });
   };
+
+  // Effect to add/update satellite layers on map
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+
+    satelliteLayers.forEach(layer => {
+      const sourceId = `${layer.id}-source`;
+      const layerId = `${layer.id}-layer`;
+
+      // Remove old layer and source if exists
+      if (addedLayerIds.current.has(layerId)) {
+        if (map.current?.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current?.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+      }
+
+      // Add new raster source and layer
+      if (map.current && !map.current.getSource(sourceId)) {
+        const [minLng, minLat, maxLng, maxLat] = layer.bbox;
+        
+        map.current.addSource(sourceId, {
+          type: 'raster',
+          tiles: [layer.url],
+          tileSize: 256,
+          bounds: [minLng, minLat, maxLng, maxLat]
+        });
+
+        map.current.addLayer({
+          id: layerId,
+          type: 'raster',
+          source: sourceId,
+          paint: {
+            'raster-opacity': layer.opacity || 0.7,
+            'raster-fade-duration': 300
+          }
+        }, 'belem-areas-fill'); // Add below polygon layers
+
+        addedLayerIds.current.add(layerId);
+      }
+    });
+
+    // Clean up old layers not in current state
+    addedLayerIds.current.forEach(layerId => {
+      const exists = satelliteLayers.some(l => `${l.id}-layer` === layerId);
+      if (!exists && map.current) {
+        const sourceId = layerId.replace('-layer', '-source');
+        if (map.current.getLayer(layerId)) {
+          map.current.removeLayer(layerId);
+        }
+        if (map.current.getSource(sourceId)) {
+          map.current.removeSource(sourceId);
+        }
+        addedLayerIds.current.delete(layerId);
+      }
+    });
+  }, [satelliteLayers, mapLoaded]);
 
   return (
     <div className="relative w-full h-full">
@@ -206,7 +296,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       </div>
 
       {/* Legend */}
-      {layers.some(l => l.enabled) && (
+      {(layers.some(l => l.enabled) || satelliteLayers.length > 0) && (
         <div className="absolute top-4 right-4 bg-card/95 backdrop-blur-sm p-4 rounded-lg border border-border shadow-elevated max-w-xs">
           <h4 className="text-sm font-semibold mb-3 text-foreground">
             Camadas Ativas
@@ -226,6 +316,20 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
                   </div>
                 );
               })}
+            {satelliteLayers.length > 0 && (
+              <>
+                {layers.some(l => l.enabled) && <div className="border-t border-border my-2" />}
+                {satelliteLayers.map(layer => (
+                  <div key={layer.id} className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-sm bg-sar-primary" />
+                    <span className="text-xs text-foreground">Sentinel-1 SAR</span>
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      {Math.round((layer.opacity || 0.7) * 100)}%
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </div>
       )}

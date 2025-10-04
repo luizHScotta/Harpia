@@ -221,8 +221,10 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
                       </span>
                     </div>
 
-                    <div className="text-xs text-muted-foreground truncate" title={result.id}>
-                      {result.id}
+                    <div className="pt-1 border-t border-border">
+                      <span className="text-xs text-primary font-medium">
+                        Clique para visualizar no mapa
+                      </span>
                     </div>
                   </div>
                 </Card>
