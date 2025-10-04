@@ -239,63 +239,81 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
 
   // Effect to add/update satellite layers on map
   useEffect(() => {
-    if (!mapLoaded || !map.current) return;
+    if (!mapLoaded || !map.current) {
+      console.log("Skipping layer update - map not ready");
+      return;
+    }
+
+    const mapInstance = map.current;
+    if (!mapInstance) return;
+
+    console.log("Updating satellite layers:", satelliteLayers.length);
 
     satelliteLayers.forEach(layer => {
       const sourceId = `${layer.id}-source`;
       const layerId = `${layer.id}-layer`;
 
-      // Remove old layer and source if exists
-      if (addedLayerIds.current.has(layerId)) {
-        if (map.current?.getLayer(layerId)) {
-          map.current.removeLayer(layerId);
-        }
-        if (map.current?.getSource(sourceId)) {
-          map.current.removeSource(sourceId);
-        }
-      }
-
-      // Add new raster source and layer
-      if (map.current && !map.current.getSource(sourceId)) {
-        const [minLng, minLat, maxLng, maxLat] = layer.bbox;
-        
-        map.current.addSource(sourceId, {
-          type: 'raster',
-          tiles: [layer.url],
-          tileSize: 256,
-          bounds: [minLng, minLat, maxLng, maxLat]
-        });
-
-        map.current.addLayer({
-          id: layerId,
-          type: 'raster',
-          source: sourceId,
-          paint: {
-            'raster-opacity': layer.opacity || 0.5,
-            'raster-fade-duration': 300,
-            'raster-brightness-max': 1,
-            'raster-contrast': 0.2
+      try {
+        // Remove old layer and source if exists
+        if (addedLayerIds.current.has(layerId)) {
+          if (mapInstance.getLayer(layerId)) {
+            mapInstance.removeLayer(layerId);
           }
-        }); // Add on top of base map
+          if (mapInstance.getSource(sourceId)) {
+            mapInstance.removeSource(sourceId);
+          }
+        }
 
-        addedLayerIds.current.add(layerId);
+        // Add new raster source and layer
+        if (!mapInstance.getSource(sourceId)) {
+          const [minLng, minLat, maxLng, maxLat] = layer.bbox;
+          
+          mapInstance.addSource(sourceId, {
+            type: 'raster',
+            tiles: [layer.url],
+            tileSize: 256,
+            bounds: [minLng, minLat, maxLng, maxLat]
+          });
+
+          mapInstance.addLayer({
+            id: layerId,
+            type: 'raster',
+            source: sourceId,
+            paint: {
+              'raster-opacity': layer.opacity || 0.5,
+              'raster-fade-duration': 300,
+              'raster-brightness-max': 1,
+              'raster-contrast': 0.2
+            }
+          }); // Add on top of base map
+
+          addedLayerIds.current.add(layerId);
+          console.log("Added layer:", layerId);
+        }
+      } catch (error) {
+        console.error("Error adding layer:", layerId, error);
       }
     });
 
     // Clean up old layers not in current state
-    addedLayerIds.current.forEach(layerId => {
-      const exists = satelliteLayers.some(l => `${l.id}-layer` === layerId);
-      if (!exists && map.current) {
-        const sourceId = layerId.replace('-layer', '-source');
-        if (map.current.getLayer(layerId)) {
-          map.current.removeLayer(layerId);
+    try {
+      addedLayerIds.current.forEach(layerId => {
+        const exists = satelliteLayers.some(l => `${l.id}-layer` === layerId);
+        if (!exists && mapInstance) {
+          const sourceId = layerId.replace('-layer', '-source');
+          if (mapInstance.getLayer(layerId)) {
+            mapInstance.removeLayer(layerId);
+          }
+          if (mapInstance.getSource(sourceId)) {
+            mapInstance.removeSource(sourceId);
+          }
+          addedLayerIds.current.delete(layerId);
+          console.log("Removed layer:", layerId);
         }
-        if (map.current.getSource(sourceId)) {
-          map.current.removeSource(sourceId);
-        }
-        addedLayerIds.current.delete(layerId);
-      }
-    });
+      });
+    } catch (error) {
+      console.error("Error cleaning up layers:", error);
+    }
   }, [satelliteLayers, mapLoaded]);
 
   return (
