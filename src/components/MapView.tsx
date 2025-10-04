@@ -32,6 +32,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const [satelliteLayers, setSatelliteLayers] = useState<SatelliteLayer[]>([]);
   const addedLayerIds = useRef<Set<string>>(new Set());
 
+  console.log("MapView render - mapLoaded:", mapLoaded, "satelliteLayers:", satelliteLayers.length);
+
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
@@ -44,6 +46,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       zoom: 11,
       pitch: 0,
     });
+
+    console.log("Mapbox map initialized");
 
     // Add navigation controls
     map.current.addControl(
@@ -90,6 +94,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
 
     map.current.on("load", () => {
+      console.log("Mapbox map loaded successfully");
       setMapLoaded(true);
       
       // Add example polygon for Belém baixadas
@@ -294,13 +299,13 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   }, [satelliteLayers, mapLoaded]);
 
   return (
-    <div className="relative w-full h-full">
+    <div className="w-full h-full">
       <div ref={mapContainer} className="absolute inset-0" />
       
       <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
       
       {/* Overlay watermark */}
-      <div className="absolute bottom-4 left-4 bg-card/80 backdrop-blur-sm px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground">
+      <div className="absolute bottom-4 left-4 bg-card/80 backdrop-blur-sm px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground z-10">
         <span className="font-semibold">Belém</span> - Monitoramento Geoespacial
       </div>
 
