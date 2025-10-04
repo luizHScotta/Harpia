@@ -13,6 +13,7 @@ interface SearchRequest {
   endDate: string;
   maxResults?: number;
   collection?: string;
+  municipality?: string; // Optional municipality ID for zonal statistics
 }
 
 Deno.serve(async (req) => {
@@ -22,7 +23,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { aoi, bbox, startDate, endDate, maxResults = 20, collection = "sentinel-1-rtc" }: SearchRequest = await req.json();
+    const { aoi, bbox, startDate, endDate, maxResults = 20, collection = "sentinel-1-rtc", municipality }: SearchRequest = await req.json();
 
     console.log(`[REAL DATA] Searching Planetary Computer STAC API`);
     console.log(`Collection: ${collection}`);
@@ -111,6 +112,21 @@ Deno.serve(async (req) => {
       console.log(`Datetime: ${firstItem.properties.datetime}`);
       console.log(`Asset count: ${Object.keys(firstItem.assets || {}).length}`);
     }
+    
+    // If municipality ID provided, fetch municipality boundary for zonal stats
+    let municipalityData = null;
+    if (municipality) {
+      try {
+        const muniUrl = `https://servicodados.ibge.gov.br/api/v4/malhas/municipios/${municipality}?formato=application/vnd.geo%2Bjson&qualidade=minima`;
+        const muniResponse = await fetch(muniUrl);
+        if (muniResponse.ok) {
+          municipalityData = await muniResponse.json();
+          console.log(`Fetched municipality boundary for: ${municipality}`);
+        }
+      } catch (error) {
+        console.error('Error fetching municipality boundary:', error);
+      }
+    }
 
     // Transform results to simpler format with all necessary data
     const results = stacData.features?.map((feature: any) => {
@@ -141,6 +157,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         count: results.length,
+        municipality: municipalityData,
         results 
       }),
       {
