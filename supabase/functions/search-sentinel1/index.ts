@@ -4,10 +4,11 @@ const corsHeaders = {
 };
 
 interface SearchRequest {
-  aoi: {
+  aoi?: {
     type: string;
     coordinates: number[][][];
   };
+  bbox?: number[]; // [lon_min, lat_min, lon_max, lat_max]
   startDate: string;
   endDate: string;
   maxResults?: number;
@@ -21,21 +22,48 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { aoi, startDate, endDate, maxResults = 20, collection = "sentinel-1-rtc" }: SearchRequest = await req.json();
+    const { aoi, bbox, startDate, endDate, maxResults = 20, collection = "sentinel-1-rtc" }: SearchRequest = await req.json();
 
-    console.log(`Searching ${collection} with AOI:`, aoi);
+    console.log(`[REAL DATA] Searching Planetary Computer STAC API`);
+    console.log(`Collection: ${collection}`);
     console.log(`Date range: ${startDate} to ${endDate}`);
+    
+    if (bbox) {
+      console.log(`Using BBOX: [${bbox.join(', ')}]`);
+    } else if (aoi) {
+      console.log(`Using AOI polygon with ${aoi.coordinates[0].length} points`);
+    }
 
     // Build CQL2-JSON filter for Planetary Computer STAC API
     const daterange = { interval: [startDate, endDate] };
     
+    // Build spatial filter based on what's provided
+    const spatialFilter = bbox 
+      ? {
+          op: "s_intersects",
+          args: [
+            { property: "geometry" }, 
+            {
+              type: "Polygon",
+              coordinates: [[
+                [bbox[0], bbox[1]],
+                [bbox[2], bbox[1]],
+                [bbox[2], bbox[3]],
+                [bbox[0], bbox[3]],
+                [bbox[0], bbox[1]]
+              ]]
+            }
+          ]
+        }
+      : {
+          op: "s_intersects",
+          args: [{ property: "geometry" }, aoi]
+        };
+    
     const filter = {
       op: "and",
       args: [
-        {
-          op: "s_intersects",
-          args: [{ property: "geometry" }, aoi]
-        },
+        spatialFilter,
         {
           op: "anyinteracts",
           args: [{ property: "datetime" }, daterange]
@@ -73,7 +101,16 @@ Deno.serve(async (req) => {
 
     const stacData = await stacResponse.json();
     
-    console.log(`Found ${stacData.features?.length || 0} Sentinel-1 scenes`);
+    console.log(`[REAL DATA] Found ${stacData.features?.length || 0} real Sentinel-1 scenes from Planetary Computer`);
+    
+    // Log first item details to verify real data
+    if (stacData.features && stacData.features.length > 0) {
+      const firstItem = stacData.features[0];
+      console.log(`First item ID: ${firstItem.id}`);
+      console.log(`Platform: ${firstItem.properties.platform}`);
+      console.log(`Datetime: ${firstItem.properties.datetime}`);
+      console.log(`Asset count: ${Object.keys(firstItem.assets || {}).length}`);
+    }
 
     // Transform results to simpler format with all necessary data
     const results = stacData.features?.map((feature: any) => {
