@@ -227,7 +227,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           type: 'sentinel1',
           url: tileUrl,
           bbox: result.bbox,
-          opacity: 0.8
+          opacity: 0.5
         };
         
         setSatelliteLayers(prev => {
@@ -292,11 +292,12 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           type: 'raster',
           source: sourceId,
           paint: {
-            'raster-opacity': layer.opacity || 0.8,
+            'raster-opacity': layer.opacity || 0.5,
             'raster-fade-duration': 300,
-            'raster-brightness-max': 1
+            'raster-brightness-max': 1,
+            'raster-contrast': 0.2
           }
-        }); // Add on top of all layers
+        }); // Add on top of base map
 
         addedLayerIds.current.add(layerId);
       }
