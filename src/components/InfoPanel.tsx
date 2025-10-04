@@ -18,7 +18,9 @@ interface InfoPanelProps {
 const InfoPanel = ({ data, isOpen }: InfoPanelProps) => {
   if (!isOpen || !data) return null;
 
-  const getRiskColor = (risk: string) => {
+  const getRiskColor = (risk: string | undefined) => {
+    if (!risk) return "bg-muted";
+    
     switch (risk.toLowerCase()) {
       case "alto":
         return "bg-risk-high";
