@@ -193,13 +193,13 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const handleResultSelect = async (result: any) => {
     if (!map.current || !mapLoaded) return;
     
+    console.log("🎯 Adding SAR image OVERLAY on top of base map");
     console.log("Selected result:", result);
 
     try {
       const mapInstance = map.current;
       
       // Use the rendered preview image URL directly from Planetary Computer
-      // This is a pre-rendered PNG image that's ready to display
       const previewUrl = result.assets?.rendered_preview?.href || 
                         result.assets?.thumbnail?.href;
       
@@ -207,13 +207,14 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         throw new Error("No preview image available for this item");
       }
 
-      console.log("Using preview image:", previewUrl);
+      console.log("📷 Preview image URL:", previewUrl);
 
-      const layerId = `sentinel1-${result.id}`;
+      const layerId = `sar-overlay-${result.id}`;
       const sourceId = `${layerId}-source`;
       
-      // Remove old layer if exists
+      // Remove old overlay if exists (keeping base map intact)
       if (mapInstance.getLayer(layerId)) {
+        console.log("🗑️ Removing old overlay layer");
         mapInstance.removeLayer(layerId);
       }
       if (mapInstance.getSource(sourceId)) {
@@ -223,7 +224,9 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       // Get the bbox coordinates [west, south, east, north]
       const [west, south, east, north] = result.bbox;
       
-      // Add image source with the preview URL
+      console.log("📍 Image bounds:", { west, south, east, north });
+      
+      // Add image source - this will be an OVERLAY on top of the base map
       mapInstance.addSource(sourceId, {
         type: 'image',
         url: previewUrl,
@@ -235,26 +238,28 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         ]
       });
 
-      // Add raster layer
+      // Add raster layer ON TOP of the base map
+      // The base map (mapbox://styles/mapbox/dark-v11) stays underneath
       mapInstance.addLayer({
         id: layerId,
         type: 'raster',
         source: sourceId,
         paint: {
-          'raster-opacity': 0.7,
+          'raster-opacity': 0.75, // Semi-transparent so base map shows through
           'raster-fade-duration': 300
         }
       });
 
-      // Fit map to image bounds
+      console.log("✅ SAR overlay layer added on top of base map:", layerId);
+      console.log("🗺️ Base map remains visible underneath");
+
+      // Fit map to image bounds (keeping base map visible)
       mapInstance.fitBounds([[west, south], [east, north]], {
         padding: 50,
         duration: 1000
       });
 
-      console.log("Image layer added successfully:", layerId);
-
-      toast.success("Imagem SAR adicionada", {
+      toast.success("Imagem SAR sobreposta ao mapa", {
         description: `Sentinel-1 ${result.platform} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
       });
 
@@ -269,7 +274,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       });
       
     } catch (error) {
-      console.error("Error loading satellite layer:", error);
+      console.error("❌ Error loading SAR overlay:", error);
       toast.error("Erro ao carregar imagem", {
         description: error instanceof Error ? error.message : "Não foi possível carregar a imagem"
       });
