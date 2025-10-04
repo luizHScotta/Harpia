@@ -3,8 +3,8 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { Layer } from "./LayerControl";
 
-// You'll need to add your Mapbox token here
-const MAPBOX_TOKEN = "pk.eyJ1IjoibG92YWJsZSIsImEiOiJjbTRxYXJjNm0wM2R5Mm1zZTJibzQwbGJwIn0.S8NR6cI6mHWGqHVUuH5tAQ";
+// Mapbox token configured
+const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
 
 interface MapViewProps {
   layers: Layer[];
