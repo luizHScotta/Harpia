@@ -190,56 +190,30 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     
     console.log("Selected result:", result);
 
-    // Fetch item data from Planetary Computer to get signed assets
+    // Fetch item data from Planetary Computer (assets are already signed)
     try {
-      const itemUrl = `https://planetarycomputer.microsoft.com/api/stac/v1/collections/${result.collection}/items/${result.id}`;
-      const response = await fetch(itemUrl);
-      const item = await response.json();
+      // Use TiTiler to render SAR data with colormap for better visualization
+      // The Planetary Computer API handles authentication automatically
+      const tileUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?collection=${result.collection}&item=${result.id}&assets=vh&assets=vv&nodata=-32768&rescale=-30,5&rescale=-30,5&colormap_name=viridis&return_mask=true`;
 
-      console.log("Item data:", item);
-
-      // Sign the assets using Planetary Computer signing service
-      const signResponse = await fetch('https://planetarycomputer.microsoft.com/api/sas/v1/sign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(item)
-      });
-      const signedItem = await signResponse.json();
-
-      console.log("Signed item:", signedItem);
-
-      // Use TiTiler with colormap for better visualization of SAR data
-      let tileUrl = '';
+      const layerId = `sentinel1-${result.id}`;
+      const newLayer: SatelliteLayer = {
+        id: layerId,
+        type: 'sentinel1',
+        url: tileUrl,
+        bbox: result.bbox,
+        opacity: 0.6
+      };
       
-      if (signedItem.assets?.vh?.href) {
-        // Use TiTiler to render VH asset with viridis colormap for visibility
-        // rescale values for SAR backscatter visualization (in dB scale, typically -30 to 0)
-        tileUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?collection=${result.collection}&item=${result.id}&assets=vh&nodata=0&rescale=-30,0&colormap_name=viridis&return_mask=true`;
-      } else if (signedItem.assets?.vv?.href) {
-        // Fallback to VV if VH not available
-        tileUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?collection=${result.collection}&item=${result.id}&assets=vv&nodata=0&rescale=-30,0&colormap_name=viridis&return_mask=true`;
-      }
+      setSatelliteLayers(prev => {
+        // Remove old layers, keep only the latest 3
+        const updated = [...prev, newLayer].slice(-3);
+        return updated;
+      });
 
-      if (tileUrl) {
-        const layerId = `sentinel1-${result.id}`;
-        const newLayer: SatelliteLayer = {
-          id: layerId,
-          type: 'sentinel1',
-          url: tileUrl,
-          bbox: result.bbox,
-          opacity: 0.5
-        };
-        
-        setSatelliteLayers(prev => {
-          // Remove old layers, keep only the latest 3
-          const updated = [...prev, newLayer].slice(-3);
-          return updated;
-        });
-
-        toast.success("Camada SAR adicionada", {
-          description: `Sentinel-1 ${result.platform} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
-        });
-      }
+      toast.success("Camada SAR adicionada", {
+        description: `Sentinel-1 ${result.platform} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
+      });
     } catch (error) {
       console.error("Error loading satellite layer:", error);
       toast.error("Erro ao carregar imagem", {
