@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Satellite, Search, Loader2, Calendar, MapPin, Image } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,6 +43,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
   const defaults = getDefaultDates();
   const [startDate, setStartDate] = useState(defaults.start);
   const [endDate, setEndDate] = useState(defaults.end);
+  const [collection, setCollection] = useState<string>("sentinel-1-grd");
 
   const handleSearch = async () => {
     if (!aoi) {
@@ -65,7 +67,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
           startDate: startISO,
           endDate: endISO,
           maxResults: 50,
-          collection: 'sentinel-1-rtc'
+          collection: collection
         }
       });
 
@@ -73,8 +75,9 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
 
       if (data.success) {
         setResults(data.results);
+        const collectionName = collection === 'sentinel-1-grd' ? 'GRD' : 'RTC';
         toast.success(`${data.count} cenas encontradas`, {
-          description: `Sentinel-1 RTC de ${startDate} a ${endDate}`,
+          description: `Sentinel-1 ${collectionName} de ${startDate} a ${endDate}`,
         });
       } else {
         throw new Error(data.error);
@@ -106,10 +109,23 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
         <div className="p-4 space-y-3">
           <div className="flex items-center gap-2">
             <Satellite className="h-5 w-5 text-sar-primary" />
-            <h3 className="font-semibold text-foreground">Busca Sentinel-1 RTC</h3>
+            <h3 className="font-semibold text-foreground">Busca Sentinel-1</h3>
           </div>
 
           <div className="space-y-2">
+            <div className="space-y-1">
+              <Label htmlFor="collection" className="text-xs">Coleção</Label>
+              <Select value={collection} onValueChange={setCollection}>
+                <SelectTrigger className="text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="sentinel-1-grd">Sentinel-1 GRD</SelectItem>
+                  <SelectItem value="sentinel-1-rtc">Sentinel-1 RTC</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-1">
               <Label htmlFor="startDate" className="text-xs">Data Inicial</Label>
               <Input
