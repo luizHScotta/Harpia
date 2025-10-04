@@ -191,50 +191,89 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   }, [layers, mapLoaded]);
 
   const handleResultSelect = async (result: any) => {
-    if (!map.current) return;
+    if (!map.current || !mapLoaded) return;
     
     console.log("Selected result:", result);
 
-    // Fetch item data from Planetary Computer (assets are already signed)
     try {
-      // Use TiTiler to render SAR data with colormap for better visualization
-      // The Planetary Computer API handles authentication automatically
-      const tileUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?collection=${result.collection}&item=${result.id}&assets=vh&assets=vv&nodata=-32768&rescale=-30,5&rescale=-30,5&colormap_name=viridis&return_mask=true`;
+      const mapInstance = map.current;
+      
+      // Use the rendered preview image URL directly from Planetary Computer
+      // This is a pre-rendered PNG image that's ready to display
+      const previewUrl = result.assets?.rendered_preview?.href || 
+                        result.assets?.thumbnail?.href;
+      
+      if (!previewUrl) {
+        throw new Error("No preview image available for this item");
+      }
+
+      console.log("Using preview image:", previewUrl);
 
       const layerId = `sentinel1-${result.id}`;
-      const newLayer: SatelliteLayer = {
-        id: layerId,
-        type: 'sentinel1',
-        url: tileUrl,
-        bbox: result.bbox,
-        opacity: 0.6
-      };
+      const sourceId = `${layerId}-source`;
       
-      setSatelliteLayers(prev => {
-        // Remove old layers, keep only the latest 3
-        const updated = [...prev, newLayer].slice(-3);
-        return updated;
+      // Remove old layer if exists
+      if (mapInstance.getLayer(layerId)) {
+        mapInstance.removeLayer(layerId);
+      }
+      if (mapInstance.getSource(sourceId)) {
+        mapInstance.removeSource(sourceId);
+      }
+
+      // Get the bbox coordinates [west, south, east, north]
+      const [west, south, east, north] = result.bbox;
+      
+      // Add image source with the preview URL
+      mapInstance.addSource(sourceId, {
+        type: 'image',
+        url: previewUrl,
+        coordinates: [
+          [west, north],  // top-left
+          [east, north],  // top-right
+          [east, south],  // bottom-right
+          [west, south]   // bottom-left
+        ]
       });
 
-      toast.success("Camada SAR adicionada", {
+      // Add raster layer
+      mapInstance.addLayer({
+        id: layerId,
+        type: 'raster',
+        source: sourceId,
+        paint: {
+          'raster-opacity': 0.7,
+          'raster-fade-duration': 300
+        }
+      });
+
+      // Fit map to image bounds
+      mapInstance.fitBounds([[west, south], [east, north]], {
+        padding: 50,
+        duration: 1000
+      });
+
+      console.log("Image layer added successfully:", layerId);
+
+      toast.success("Imagem SAR adicionada", {
         description: `Sentinel-1 ${result.platform} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
       });
+
+      // Show result info
+      onFeatureClick({
+        name: result.id,
+        date: new Date(result.datetime).toLocaleDateString('pt-BR'),
+        platform: result.platform,
+        polarizations: result.polarizations?.join(', ') || 'N/A',
+        mode: result.instrumentMode,
+        collection: result.collection
+      });
+      
     } catch (error) {
       console.error("Error loading satellite layer:", error);
       toast.error("Erro ao carregar imagem", {
-        description: "Não foi possível carregar a camada de satélite"
+        description: error instanceof Error ? error.message : "Não foi possível carregar a imagem"
       });
     }
-
-    // Show result info
-    onFeatureClick({
-      name: result.id,
-      date: new Date(result.datetime).toLocaleDateString('pt-BR'),
-      platform: result.platform,
-      polarizations: result.polarizations?.join(', ') || 'N/A',
-      mode: result.instrumentMode,
-      collection: result.collection
-    });
   };
 
   // Effect to add/update satellite layers on map
