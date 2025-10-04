@@ -29,10 +29,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const draw = useRef<MapboxDraw | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentAOI, setCurrentAOI] = useState<any>(null);
-  const [satelliteLayers, setSatelliteLayers] = useState<SatelliteLayer[]>([]);
-  const addedLayerIds = useRef<Set<string>>(new Set());
 
-  console.log("MapView render - mapLoaded:", mapLoaded, "satelliteLayers:", satelliteLayers.length);
+  console.log("MapView render - mapLoaded:", mapLoaded);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -191,13 +189,24 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   }, [layers, mapLoaded]);
 
   const handleResultSelect = async (result: any) => {
-    if (!map.current || !mapLoaded) return;
-    
     console.log("🎯 Adding SAR image OVERLAY on top of base map");
     console.log("Selected result:", result);
 
+    // Wait for map to be fully loaded
+    if (!map.current || !mapLoaded) {
+      console.error("⚠️ Map not ready yet");
+      toast.error("Aguarde o mapa carregar");
+      return;
+    }
+
     try {
       const mapInstance = map.current;
+      
+      // Verify map is still valid
+      if (!mapInstance.getStyle()) {
+        console.error("⚠️ Map style not loaded");
+        return;
+      }
       
       // Use the rendered preview image URL directly from Planetary Computer
       const previewUrl = result.assets?.rendered_preview?.href || 
@@ -209,16 +218,25 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
 
       console.log("📷 Preview image URL:", previewUrl);
 
-      const layerId = `sar-overlay-${result.id}`;
+      const layerId = `sar-overlay`;
       const sourceId = `${layerId}-source`;
       
       // Remove old overlay if exists (keeping base map intact)
-      if (mapInstance.getLayer(layerId)) {
-        console.log("🗑️ Removing old overlay layer");
-        mapInstance.removeLayer(layerId);
+      try {
+        if (mapInstance.getLayer(layerId)) {
+          console.log("🗑️ Removing old overlay layer");
+          mapInstance.removeLayer(layerId);
+        }
+      } catch (e) {
+        console.log("No existing layer to remove");
       }
-      if (mapInstance.getSource(sourceId)) {
-        mapInstance.removeSource(sourceId);
+      
+      try {
+        if (mapInstance.getSource(sourceId)) {
+          mapInstance.removeSource(sourceId);
+        }
+      } catch (e) {
+        console.log("No existing source to remove");
       }
 
       // Get the bbox coordinates [west, south, east, north]
@@ -281,85 +299,6 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
   };
 
-  // Effect to add/update satellite layers on map
-  useEffect(() => {
-    if (!mapLoaded || !map.current) {
-      console.log("Skipping layer update - map not ready");
-      return;
-    }
-
-    const mapInstance = map.current;
-    if (!mapInstance) return;
-
-    console.log("Updating satellite layers:", satelliteLayers.length);
-
-    satelliteLayers.forEach(layer => {
-      const sourceId = `${layer.id}-source`;
-      const layerId = `${layer.id}-layer`;
-
-      try {
-        // Remove old layer and source if exists
-        if (addedLayerIds.current.has(layerId)) {
-          if (mapInstance.getLayer(layerId)) {
-            mapInstance.removeLayer(layerId);
-          }
-          if (mapInstance.getSource(sourceId)) {
-            mapInstance.removeSource(sourceId);
-          }
-        }
-
-        // Add new raster source and layer
-        if (!mapInstance.getSource(sourceId)) {
-          const [minLng, minLat, maxLng, maxLat] = layer.bbox;
-          
-          mapInstance.addSource(sourceId, {
-            type: 'raster',
-            tiles: [layer.url],
-            tileSize: 256,
-            bounds: [minLng, minLat, maxLng, maxLat]
-          });
-
-          mapInstance.addLayer({
-            id: layerId,
-            type: 'raster',
-            source: sourceId,
-            paint: {
-              'raster-opacity': layer.opacity || 0.5,
-              'raster-fade-duration': 300,
-              'raster-brightness-max': 1,
-              'raster-contrast': 0.2
-            }
-          }); // Add on top of base map
-
-          addedLayerIds.current.add(layerId);
-          console.log("Added layer:", layerId);
-        }
-      } catch (error) {
-        console.error("Error adding layer:", layerId, error);
-      }
-    });
-
-    // Clean up old layers not in current state
-    try {
-      addedLayerIds.current.forEach(layerId => {
-        const exists = satelliteLayers.some(l => `${l.id}-layer` === layerId);
-        if (!exists && mapInstance) {
-          const sourceId = layerId.replace('-layer', '-source');
-          if (mapInstance.getLayer(layerId)) {
-            mapInstance.removeLayer(layerId);
-          }
-          if (mapInstance.getSource(sourceId)) {
-            mapInstance.removeSource(sourceId);
-          }
-          addedLayerIds.current.delete(layerId);
-          console.log("Removed layer:", layerId);
-        }
-      });
-    } catch (error) {
-      console.error("Error cleaning up layers:", error);
-    }
-  }, [satelliteLayers, mapLoaded]);
-
   return (
     <div className="w-full h-full">
       <div ref={mapContainer} className="absolute inset-0" />
@@ -372,7 +311,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       </div>
 
       {/* Legend */}
-      {(layers.some(l => l.enabled) || satelliteLayers.length > 0) && (
+      {layers.some(l => l.enabled) && (
         <div className="absolute top-4 right-4 bg-card/95 backdrop-blur-sm p-4 rounded-lg border border-border shadow-elevated max-w-xs">
           <h4 className="text-sm font-semibold mb-3 text-foreground">
             Camadas Ativas
@@ -392,20 +331,6 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
                   </div>
                 );
               })}
-            {satelliteLayers.length > 0 && (
-              <>
-                {layers.some(l => l.enabled) && <div className="border-t border-border my-2" />}
-                {satelliteLayers.map(layer => (
-                  <div key={layer.id} className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-sm bg-sar-primary" />
-                    <span className="text-xs text-foreground">Sentinel-1 SAR</span>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      {Math.round((layer.opacity || 0.7) * 100)}%
-                    </span>
-                  </div>
-                ))}
-              </>
-            )}
           </div>
         </div>
       )}
