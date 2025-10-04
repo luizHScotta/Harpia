@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import MapboxDraw from "@mapbox/mapbox-gl-draw";
+import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { Layer } from "./LayerControl";
+import Sentinel1Search from "./Sentinel1Search";
 
 // Mapbox token configured
 const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
@@ -14,7 +17,9 @@ interface MapViewProps {
 const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const draw = useRef<MapboxDraw | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [currentAOI, setCurrentAOI] = useState<any>(null);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -45,6 +50,33 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       }),
       "bottom-right"
     );
+
+    // Add drawing controls
+    draw.current = new MapboxDraw({
+      displayControlsDefault: false,
+      controls: {
+        polygon: true,
+        trash: true
+      },
+      defaultMode: 'simple_select'
+    });
+    map.current.addControl(draw.current, "top-left");
+
+    // Listen to draw events
+    map.current.on('draw.create', updateArea);
+    map.current.on('draw.delete', updateArea);
+    map.current.on('draw.update', updateArea);
+
+    function updateArea() {
+      const data = draw.current?.getAll();
+      if (data && data.features.length > 0) {
+        const polygon = data.features[0];
+        setCurrentAOI(polygon.geometry);
+        console.log("AOI updated:", polygon.geometry);
+      } else {
+        setCurrentAOI(null);
+      }
+    }
 
     map.current.on("load", () => {
       setMapLoaded(true);
@@ -142,9 +174,31 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     // 3. Update layer opacity based on slider values
   }, [layers, mapLoaded]);
 
+  const handleResultSelect = (result: any) => {
+    if (!map.current) return;
+    
+    // Zoom to result bbox
+    const [minLng, minLat, maxLng, maxLat] = result.bbox;
+    map.current.fitBounds(
+      [[minLng, minLat], [maxLng, maxLat]],
+      { padding: 50 }
+    );
+
+    // Show result info
+    onFeatureClick({
+      name: result.id,
+      date: new Date(result.datetime).toLocaleDateString('pt-BR'),
+      platform: result.platform,
+      polarizations: result.polarizations.join(', '),
+      mode: result.instrumentMode
+    });
+  };
+
   return (
     <div className="relative w-full h-full">
       <div ref={mapContainer} className="absolute inset-0" />
+      
+      <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
       
       {/* Overlay watermark */}
       <div className="absolute bottom-4 left-4 bg-card/80 backdrop-blur-sm px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground">

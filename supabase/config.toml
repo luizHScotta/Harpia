@@ -1,0 +1,4 @@
+project_id = "lpyexykkrvljgpayxqfl"
+
+[functions.search-sentinel1]
+verify_jwt = false
