@@ -5,7 +5,6 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { Layer } from "./LayerControl";
 import Sentinel1Search from "./Sentinel1Search";
-import MunicipalitySelector from "./MunicipalitySelector";
 import { toast } from "sonner";
 
 // Mapbox token configured
@@ -31,7 +30,6 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentAOI, setCurrentAOI] = useState<any>(null);
   const [satelliteLayers, setSatelliteLayers] = useState<SatelliteLayer[]>([]);
-  const [selectedMunicipality, setSelectedMunicipality] = useState<any>(null);
   const addedLayerIds = useRef<Set<string>>(new Set());
 
   console.log("MapView render - mapLoaded:", mapLoaded, "satelliteLayers:", satelliteLayers.length);
@@ -89,7 +87,6 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       if (data && data.features.length > 0) {
         const polygon = data.features[0];
         setCurrentAOI(polygon.geometry);
-        setSelectedMunicipality(null); // Clear municipality when drawing
         console.log("AOI updated:", polygon.geometry);
       } else {
         setCurrentAOI(null);
@@ -319,79 +316,10 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
   }, [satelliteLayers, mapLoaded]);
 
-  const handleMunicipalitySelect = (municipality: any) => {
-    if (!map.current) return;
-
-    // Clear any drawn polygons
-    draw.current?.deleteAll();
-
-    // Add municipality boundary to map
-    const sourceId = 'selected-municipality';
-    const layerId = 'selected-municipality-layer';
-    const outlineLayerId = 'selected-municipality-outline';
-
-    try {
-      // Remove existing layers
-      if (map.current.getLayer(outlineLayerId)) {
-        map.current.removeLayer(outlineLayerId);
-      }
-      if (map.current.getLayer(layerId)) {
-        map.current.removeLayer(layerId);
-      }
-      if (map.current.getSource(sourceId)) {
-        map.current.removeSource(sourceId);
-      }
-
-      // Add municipality source
-      map.current.addSource(sourceId, {
-        type: 'geojson',
-        data: municipality
-      });
-
-      // Add fill layer
-      map.current.addLayer({
-        id: layerId,
-        type: 'fill',
-        source: sourceId,
-        paint: {
-          'fill-color': 'hsl(var(--primary))',
-          'fill-opacity': 0.15
-        }
-      });
-
-      // Add outline layer
-      map.current.addLayer({
-        id: outlineLayerId,
-        type: 'line',
-        source: sourceId,
-        paint: {
-          'line-color': 'hsl(var(--primary))',
-          'line-width': 2
-        }
-      });
-
-      // Fit map to municipality bounds
-      const bounds = new mapboxgl.LngLatBounds();
-      const coords = municipality.geometry.coordinates[0];
-      coords.forEach((coord: number[]) => {
-        bounds.extend(coord as [number, number]);
-      });
-      map.current.fitBounds(bounds, { padding: 50 });
-
-      // Set as current AOI for Sentinel-1 search
-      setCurrentAOI(municipality.geometry);
-      setSelectedMunicipality(municipality);
-
-    } catch (error) {
-      console.error('Error adding municipality to map:', error);
-    }
-  };
-
   return (
     <div className="w-full h-full">
       <div ref={mapContainer} className="absolute inset-0" />
       
-      <MunicipalitySelector onMunicipalitySelect={handleMunicipalitySelect} />
       <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
       
       {/* Overlay watermark */}
