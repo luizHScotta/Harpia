@@ -190,13 +190,6 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     
     console.log("Selected result:", result);
 
-    // Zoom to result bbox
-    const [minLng, minLat, maxLng, maxLat] = result.bbox;
-    map.current.fitBounds(
-      [[minLng, minLat], [maxLng, maxLat]],
-      { padding: 50, duration: 1000 }
-    );
-
     // Fetch item data from Planetary Computer to get signed assets
     try {
       const itemUrl = `https://planetarycomputer.microsoft.com/api/stac/v1/collections/${result.collection}/items/${result.id}`;
@@ -215,16 +208,16 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
 
       console.log("Signed item:", signedItem);
 
-      // Get the rendered preview or use VH asset with TiTiler
+      // Use TiTiler with colormap for better visualization of SAR data
       let tileUrl = '';
       
-      if (signedItem.assets?.rendered_preview?.href) {
-        // Use rendered preview if available
-        tileUrl = signedItem.assets.rendered_preview.href;
-      } else if (signedItem.assets?.vh?.href) {
-        // Use TiTiler to render VH asset as tiles
-        const assetHref = signedItem.assets.vh.href;
-        tileUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?collection=${result.collection}&item=${result.id}&assets=vh&nodata=0&rescale=0,1000`;
+      if (signedItem.assets?.vh?.href) {
+        // Use TiTiler to render VH asset with viridis colormap for visibility
+        // rescale values for SAR backscatter visualization (in dB scale, typically -30 to 0)
+        tileUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?collection=${result.collection}&item=${result.id}&assets=vh&nodata=0&rescale=-30,0&colormap_name=viridis&return_mask=true`;
+      } else if (signedItem.assets?.vv?.href) {
+        // Fallback to VV if VH not available
+        tileUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/tiles/WebMercatorQuad/{z}/{x}/{y}@1x?collection=${result.collection}&item=${result.id}&assets=vv&nodata=0&rescale=-30,0&colormap_name=viridis&return_mask=true`;
       }
 
       if (tileUrl) {
@@ -234,7 +227,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           type: 'sentinel1',
           url: tileUrl,
           bbox: result.bbox,
-          opacity: 0.7
+          opacity: 0.8
         };
         
         setSatelliteLayers(prev => {
@@ -243,7 +236,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           return updated;
         });
 
-        toast.success("Camada adicionada ao mapa", {
+        toast.success("Camada SAR adicionada", {
           description: `Sentinel-1 ${result.platform} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
         });
       }
@@ -299,10 +292,11 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           type: 'raster',
           source: sourceId,
           paint: {
-            'raster-opacity': layer.opacity || 0.7,
-            'raster-fade-duration': 300
+            'raster-opacity': layer.opacity || 0.8,
+            'raster-fade-duration': 300,
+            'raster-brightness-max': 1
           }
-        }, 'belem-areas-fill'); // Add below polygon layers
+        }); // Add on top of all layers
 
         addedLayerIds.current.add(layerId);
       }
