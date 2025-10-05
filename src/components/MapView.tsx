@@ -220,6 +220,30 @@ const MapView = ({
       if (new3DState) {
         console.log("Activating 3D mode...");
         
+        // Verificar satélites compatíveis com modo 3D
+        const compatible3DSatellites = [
+          'nasa-worldview', 
+          'usgs-imagery', 
+          'sentinel1-vv', 
+          'sentinel1-vh',
+          'flood',
+          'water-index'
+        ];
+        
+        const activeLayers = layers.filter(l => l.enabled);
+        const activeIncompatible = activeLayers
+          .filter(layer => !compatible3DSatellites.includes(layer.id))
+          .map(layer => layer.name);
+
+        if (activeIncompatible.length > 0) {
+          toast.info(
+            `Modo 3D ativado`,
+            {
+              description: `Apenas satélites compatíveis (NASA Worldview, USGS, Sentinel-1) serão exibidos no modo 3D`
+            }
+          );
+        }
+        
         // Add terrain source
         if (!map.current.getSource('mapbox-dem')) {
           map.current.addSource('mapbox-dem', {

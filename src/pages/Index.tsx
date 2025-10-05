@@ -116,6 +116,7 @@ const Index = () => {
                   aoi={currentAOI}
                   layers={layers}
                   searchResults={searchResults}
+                  municipioId="1501402"
                 />
               </aside>
             )}
@@ -152,6 +153,7 @@ const Index = () => {
                   aoi={currentAOI}
                   layers={layers}
                   searchResults={searchResults}
+                  municipioId="1501402"
                 />
               </aside>
             )}
