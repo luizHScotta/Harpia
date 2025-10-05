@@ -418,6 +418,13 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     autoLoadLayerData();
   }, [selectedArea, layers, mapLoaded, dateRange, updateImageOverlay]);
 
+  const handleResultSelect = (result: any) => {
+    console.log("Selected result:", result);
+    toast.success("Imagem selecionada", {
+      description: `Carregando dados de ${result.datetime}`
+    });
+  };
+
   return (
     <div className="absolute inset-0">
       <div ref={mapContainer} className="w-full h-full" />
@@ -448,6 +455,31 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           </Button>
         </div>
       )}
+
+      {/* SAR Search Panel */}
+      <div className="absolute bottom-6 left-6 z-10 w-96">
+        <Sentinel1Search 
+          aoi={currentAOI || DEFAULT_BELEM_AOI}
+          onResultSelect={handleResultSelect}
+        />
+      </div>
+
+      {/* Planetary Search Panel */}
+      <div className="absolute bottom-6 right-6 z-10 w-96">
+        <PlanetarySearch
+          aoi={currentAOI || DEFAULT_BELEM_AOI}
+          activeCollection="sentinel-2-l2a"
+          onResultSelect={handleResultSelect}
+        />
+      </div>
+
+      {/* Water Analysis Panel */}
+      <div className="absolute top-20 right-6 z-10 w-80">
+        <WaterAnalysis 
+          aoi={currentAOI} 
+          onResultSelect={handleResultSelect}
+        />
+      </div>
     </div>
   );
 };
