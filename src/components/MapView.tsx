@@ -311,6 +311,12 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           continue;
         }
 
+        // Skip if layer is already loaded
+        if (activeLayersRef.current.has(layer.id)) {
+          console.log(`✅ Layer ${layer.id} already loaded`);
+          continue;
+        }
+
         // Determine collection and parameters for this layer
         let collection: string | null = null;
         let assets: string[] = [];
@@ -368,6 +374,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
 
         try {
           console.log(`🔄 Loading layer: ${layer.id} with collection: ${collection}`);
+          toast.loading(`Carregando ${layer.name}...`, { id: `layer-${layer.id}` });
 
           const { data, error } = await supabase.functions.invoke('search-planetary-data', {
             body: {
@@ -378,9 +385,30 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
             }
           });
 
-          if (error) throw error;
+          if (error) {
+            console.error(`❌ API Error for ${layer.id}:`, error);
+            toast.error(`Erro ao carregar ${layer.name}`, { 
+              id: `layer-${layer.id}`,
+              description: "A API está temporariamente indisponível. Tente novamente."
+            });
+            continue;
+          }
+
+          if (!data?.success) {
+            console.warn(`⚠️ No success flag for ${layer.id}`);
+            toast.warning(`Dados não encontrados para ${layer.name}`, { 
+              id: `layer-${layer.id}`,
+              description: "Tente ajustar a área ou período"
+            });
+            continue;
+          }
+
           if (!data?.items?.[0]) {
             console.log(`⚠️ No data found for ${layer.id}`);
+            toast.warning(`Sem dados disponíveis para ${layer.name}`, { 
+              id: `layer-${layer.id}`,
+              description: "Nenhuma imagem encontrada nesta área"
+            });
             continue;
           }
 
@@ -409,8 +437,14 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           console.log(`✅ Loading image for ${layer.id}:`, imageUrl);
 
           await updateImageOverlay(imageUrl, [west, south, east, north], layer.id);
-        } catch (err) {
+          
+          toast.success(`${layer.name} carregada com sucesso`, { id: `layer-${layer.id}` });
+        } catch (err: any) {
           console.error(`❌ Error loading ${layer.id}:`, err);
+          toast.error(`Falha ao carregar ${layer.name}`, { 
+            id: `layer-${layer.id}`,
+            description: err.message || "Erro desconhecido"
+          });
         }
       }
     };
