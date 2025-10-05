@@ -218,28 +218,32 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     updateImageOverlay(currentImageResult, activeLayers);
   }, [layers, mapLoaded, currentAOI, currentImageResult]);
 
+  // Store mapping of map layers to control layers for opacity updates
+  const layerMappingRef = useRef<Map<string, string>>(new Map());
+  
   // Update opacity of all existing raster layers dynamically
   useEffect(() => {
     if (!mapLoaded || !map.current) return;
 
+    // Update each layer's opacity individually
     layers.forEach(layer => {
-      // Find all map layers that might be associated with this control layer
-      const mapLayers = ['sar-overlay', 'sar-overlay-1', 'sar-overlay-2', 'sar-overlay-3'];
+      if (!layer.enabled) return;
       
-      mapLayers.forEach(layerId => {
-        if (map.current?.getLayer(layerId)) {
-          const layerStyle = map.current.getLayer(layerId);
-          
-          // Update opacity based on layer settings
-          if (layerStyle && layerStyle.type === 'raster') {
-            const opacity = layer.opacity / 100;
-            map.current.setPaintProperty(layerId, 'raster-opacity', opacity);
-            console.log(`🎨 Updated opacity for ${layerId}: ${opacity}`);
-          }
+      // Try to find matching map layer by checking the mapping or searching all layers
+      const mapLayerIds = ['sar-overlay', 'sar-overlay-1', 'sar-overlay-2', 'sar-overlay-3'];
+      
+      mapLayerIds.forEach(mapLayerId => {
+        // Check if this map layer is mapped to this control layer
+        const mappedControlLayerId = layerMappingRef.current.get(mapLayerId);
+        
+        if (mappedControlLayerId === layer.id && map.current?.getLayer(mapLayerId)) {
+          const opacity = layer.opacity / 100;
+          map.current.setPaintProperty(mapLayerId, 'raster-opacity', opacity);
+          console.log(`🎨 Updated opacity for ${mapLayerId} (${layer.id}): ${opacity}`);
         }
       });
     });
-  }, [layers.map(l => l.opacity).join(','), mapLoaded]);
+  }, [layers.map(l => `${l.id}:${l.opacity}:${l.enabled}`).join(','), mapLoaded]);
 
   const clearAllPolygons = () => {
     if (draw.current) {
@@ -363,6 +367,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     const hasMODISTemperature = activeLayers.some(l => l.id === 'modis-temperature');
     const hasGlobalBiomass = activeLayers.some(l => l.id === 'global-biomass');
     const hasESAWorldCover = activeLayers.some(l => l.id === 'esa-worldcover');
+    const hasIOLULC = activeLayers.some(l => l.id === 'io-lulc');
     
     // New analysis layers
     const hasNDWI = activeLayers.some(l => l.id === 'ndwi-water');
@@ -458,6 +463,11 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           }
         });
         console.log(`✅ Raster tile layer ${layerId} added successfully with opacity: ${opacity}`);
+        
+        // Store mapping for opacity updates
+        if (targetLayerId) {
+          layerMappingRef.current.set(layerId, targetLayerId);
+        }
 
         // Fit map to bounds
         const [west, south, east, north] = result.bbox;
@@ -544,6 +554,11 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       imageUrl = result.assets?.map?.href || result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'esa-worldcover')?.opacity || 75) / 100;
       console.log("✅ Using ESA WorldCover:", imageUrl);
+    } else if (hasIOLULC && collection === 'io-lulc') {
+      // Impact Observatory Land Cover
+      imageUrl = result.assets?.data?.href || result.assets?.rendered_preview?.href;
+      opacity = (activeLayers.find(l => l.id === 'io-lulc')?.opacity || 75) / 100;
+      console.log("✅ Using IO Land Cover:", imageUrl);
     } else if (hasDEMTerrain && collection === 'cop-dem-glo-90') {
       // Copernicus DEM with hillshade visualization
       const itemId = result.id;
@@ -609,6 +624,29 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       }, firstSymbolId);
 
       console.log(`✅ Image overlay ${layerIndex} added successfully - opacity: ${opacity}`);
+      
+      // Store mapping for opacity updates - determine which control layer this is
+      let controlLayerId = '';
+      if (hasSentinel1VV) controlLayerId = 'sentinel1-vv';
+      else if (hasSentinel1VH) controlLayerId = 'sentinel1-vh';
+      else if (hasSentinel2) controlLayerId = 'sentinel2';
+      else if (hasLandsat) controlLayerId = 'landsat';
+      else if (hasDEM) controlLayerId = 'dem';
+      else if (hasNASADEM) controlLayerId = 'nasadem';
+      else if (hasALOSDEM) controlLayerId = 'alosdem';
+      else if (hasMODISReflectance) controlLayerId = 'modis-reflectance';
+      else if (hasMODISVegetation) controlLayerId = 'modis-vegetation';
+      else if (hasMODISBiomass) controlLayerId = 'modis-biomass';
+      else if (hasMODISTemperature) controlLayerId = 'modis-temperature';
+      else if (hasGlobalBiomass) controlLayerId = 'global-biomass';
+      else if (hasESAWorldCover) controlLayerId = 'esa-worldcover';
+      else if (hasIOLULC) controlLayerId = 'io-lulc';
+      else if (hasDEMTerrain) controlLayerId = 'dem-terrain';
+      
+      if (controlLayerId) {
+        layerMappingRef.current.set(layerId, controlLayerId);
+      }
+      
       toast.success("Imagem sobreposta ao mapa", {
         description: `Opacidade: ${Math.round(opacity * 100)}%`
       });
@@ -676,7 +714,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     const hasOther = activeLayers.some(l => 
       ['sentinel2', 'landsat', 'dem', 'nasadem', 'alosdem', 
        'modis-reflectance', 'modis-vegetation', 'modis-biomass', 
-       'modis-temperature', 'global-biomass', 'esa-worldcover'].includes(l.id)
+       'modis-temperature', 'global-biomass', 'esa-worldcover', 'io-lulc'].includes(l.id)
     );
     
     // Auto-suggest but don't force change
@@ -709,6 +747,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       'modis-temperature': { collection: 'modis-11A1-061' },
       'global-biomass': { collection: 'hgb' },
       'esa-worldcover': { collection: 'esa-worldcover' },
+      'io-lulc': { collection: 'io-lulc' },
       'dem-terrain': { collection: 'cop-dem-glo-90' }
     };
 

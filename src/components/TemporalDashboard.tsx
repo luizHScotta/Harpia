@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, TrendingDown, Download, Calendar } from "lucide-react";
+import { TrendingUp, TrendingDown, Download, Calendar, Minimize2, Maximize2 } from "lucide-react";
 
 interface HistoricalData {
   year: number;
@@ -27,6 +27,7 @@ const TemporalDashboard = () => {
   const [selectedYear, setSelectedYear] = useState([2024]);
   const [isLoading, setIsLoading] = useState(true);
   const [trends, setTrends] = useState<Record<string, number>>({});
+  const [isMinimized, setIsMinimized] = useState(false);
 
   useEffect(() => {
     loadHistoricalData();
@@ -120,16 +121,29 @@ Gerado em: ${new Date().toLocaleString('pt-BR')}
   return (
     <Card className="absolute bottom-4 left-4 w-[600px] max-h-[500px] overflow-y-auto shadow-elevated">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Calendar className="h-5 w-5" />
-          Análise Temporal (2017-2024)
-        </CardTitle>
-        <CardDescription>
-          Evolução da cobertura do solo em Belém
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Análise Temporal (2017-2024)
+            </CardTitle>
+            <CardDescription>
+              Evolução da cobertura do solo em Belém
+            </CardDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setIsMinimized(!isMinimized)}
+          >
+            {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
+          </Button>
+        </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      {!isMinimized && (
+        <CardContent className="space-y-4">
         {/* Year Slider */}
         <div className="space-y-2">
           <div className="flex justify-between items-center">
@@ -217,6 +231,7 @@ Gerado em: ${new Date().toLocaleString('pt-BR')}
           </ul>
         </div>
       </CardContent>
+      )}
     </Card>
   );
 };

@@ -288,6 +288,16 @@ export const defaultLayers: Layer[] = [
     description: "Cobertura solo 10m (carrega automaticamente)"
   },
   {
+    id: "io-lulc",
+    name: "Cobertura Humana",
+    category: "Análises",
+    icon: Globe,
+    color: "hsl(280 60% 50%)",
+    enabled: false,
+    opacity: 75,
+    description: "Impact Observatory Land Cover 10m - uso do solo (carrega ao ativar)"
+  },
+  {
     id: "ndvi",
     name: "NDVI",
     category: "Análises",
