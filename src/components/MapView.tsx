@@ -36,6 +36,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const draw = useRef<MapboxDraw | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentAOI, setCurrentAOI] = useState<any>(null);
   const [currentImageResult, setCurrentImageResult] = useState<any>(null);
@@ -293,6 +294,10 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
     
     const mapInstance = map.current;
     
+    // Remover todos os markers
+    markersRef.current.forEach(marker => marker.remove());
+    markersRef.current = [];
+    
     // Remove all SAR overlays (pode ter múltiplos agora)
     let layerIndex = 0;
     while (true) {
@@ -314,7 +319,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       }
     }
     
-    console.log("🗑️ All image overlays removed");
+    console.log("🗑️ All image overlays and markers removed");
   };
 
   const clipImageToPolygon = async (imageUrl: string, bbox: number[], polygonCoords: number[][]): Promise<string> => {
@@ -380,6 +385,25 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       img.onerror = () => reject(new Error('Failed to load image'));
       img.src = imageUrl;
     });
+  };
+
+  // Função auxiliar para obter nome abreviado da coleção
+  const getCollectionDisplayName = (collection: string) => {
+    const names: Record<string, string> = {
+      'sentinel-1-grd': 'S1',
+      'sentinel-2-l2a': 'S2',
+      'landsat-c2-l2': 'Landsat',
+      'cop-dem-glo-30': 'COP-DEM',
+      'nasadem': 'NASA-DEM',
+      'alos-dem': 'ALOS',
+      'modis-09Q1-061': 'MODIS-R',
+      'modis-13A1-061': 'MODIS-V',
+      'modis-17A3HGF-061': 'MODIS-B',
+      'modis-11A1-061': 'MODIS-T',
+      'hgb': 'Biomass',
+      'esa-worldcover': 'ESA-WC'
+    };
+    return names[collection] || collection;
   };
 
   const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0, collection?: string) => {
@@ -544,9 +568,36 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
         }
       }, firstSymbolId);
 
-      console.log(`✅ Image overlay ${layerIndex} added successfully - opacity: ${opacity}`);
+      // Adicionar marker com badge identificando o satélite
+      const [minLng, minLat, maxLng, maxLat] = result.bbox;
+      const centerLng = (minLng + maxLng) / 2;
+      const centerLat = (minLat + maxLat) / 2;
+
+      const el = document.createElement('div');
+      el.className = 'satellite-badge';
+      el.innerHTML = `<span class="badge-content">${getCollectionDisplayName(collection || result.collection)}</span>`;
+      el.style.cssText = `
+        background: hsl(var(--primary));
+        color: hsl(var(--primary-foreground));
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        cursor: pointer;
+        white-space: nowrap;
+        border: 1px solid hsl(var(--primary) / 0.5);
+      `;
+
+      const marker = new mapboxgl.Marker({ element: el })
+        .setLngLat([centerLng, centerLat])
+        .addTo(mapInstance);
+
+      markersRef.current.push(marker);
+
+      console.log(`✅ Image overlay ${layerIndex} added successfully with badge - opacity: ${opacity}`);
       toast.success("Imagem recortada sobreposta ao mapa", {
-        description: `Opacidade: ${Math.round(opacity * 100)}%`
+        description: `${getCollectionDisplayName(collection || result.collection)} - Opacidade: ${Math.round(opacity * 100)}%`
       });
       
     } catch (error) {
