@@ -5,8 +5,10 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { Layer } from "./LayerControl";
 import Sentinel1Search from "./Sentinel1Search";
+import PlanetarySearch from "./PlanetarySearch";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Box, Cuboid } from "lucide-react";
 
 // Mapbox token configured
 const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
@@ -31,6 +33,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentAOI, setCurrentAOI] = useState<any>(null);
   const [currentImageResult, setCurrentImageResult] = useState<any>(null);
+  const [is3DMode, setIs3DMode] = useState(false);
+  const [activeSearchType, setActiveSearchType] = useState<'sentinel1' | 'planetary'>('sentinel1');
 
   console.log("MapView render - mapLoaded:", mapLoaded);
 
@@ -45,6 +49,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       center: [-48.5044, -1.4558], // Belém coordinates
       zoom: 11,
       pitch: 0,
+      antialias: true, // Melhor qualidade 3D
     });
 
     console.log("Mapbox map initialized");
@@ -199,19 +204,6 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     updateImageOverlay(currentImageResult, activeLayers);
   }, [layers, mapLoaded, currentAOI, currentImageResult]);
 
-  // Handle IBGE municipalities layer
-  useEffect(() => {
-    if (!mapLoaded || !map.current) return;
-
-    const vulnerableLayer = layers.find(l => l.id === 'vulnerable-communities');
-    
-    if (vulnerableLayer?.enabled) {
-      loadIBGEMunicipalities(vulnerableLayer.opacity);
-    } else {
-      removeIBGELayer();
-    }
-  }, [layers, mapLoaded]);
-
   const clearAllPolygons = () => {
     if (draw.current) {
       draw.current.deleteAll();
@@ -219,6 +211,70 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       setCurrentImageResult(null);
       removeImageOverlay();
       toast.success("Todos os polígonos removidos");
+    }
+  };
+
+  const toggle3DMode = () => {
+    if (!map.current) return;
+    
+    const newMode = !is3DMode;
+    setIs3DMode(newMode);
+    
+    if (newMode) {
+      // Ativar 3D com terreno
+      map.current.easeTo({
+        pitch: 70,
+        bearing: -17.6,
+        duration: 1500
+      });
+
+      // Adicionar fonte de terreno DEM se não existir
+      if (!map.current.getSource('mapbox-dem')) {
+        map.current.addSource('mapbox-dem', {
+          'type': 'raster-dem',
+          'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+          'tileSize': 512,
+          'maxzoom': 14
+        });
+        
+        // Configurar terreno 3D
+        map.current.setTerrain({ 
+          'source': 'mapbox-dem', 
+          'exaggeration': 2.5 // Exagerar relevo para melhor visualização
+        });
+
+        // Adicionar sky layer para efeito atmosférico
+        map.current.addLayer({
+          'id': 'sky',
+          'type': 'sky',
+          'paint': {
+            'sky-type': 'atmosphere',
+            'sky-atmosphere-sun': [0.0, 90.0],
+            'sky-atmosphere-sun-intensity': 15
+          }
+        });
+      } else {
+        map.current.setTerrain({ 
+          'source': 'mapbox-dem', 
+          'exaggeration': 2.5 
+        });
+      }
+      
+      toast.success("Modo 3D ativado", {
+        description: "Terreno com elevação real"
+      });
+    } else {
+      // Voltar para 2D
+      map.current.easeTo({
+        pitch: 0,
+        bearing: 0,
+        duration: 1500
+      });
+      
+      // Remover terreno 3D
+      map.current.setTerrain(null);
+      
+      toast.success("Modo 2D ativado");
     }
   };
 
@@ -251,115 +307,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     console.log("🗑️ All image overlays removed");
   };
 
-  const loadIBGEMunicipalities = async (opacity: number = 65) => {
-    if (!map.current) return;
-
-    const mapInstance = map.current;
-    
-    try {
-      toast.loading("Carregando municípios do IBGE...");
-      
-      // Call edge function to get IBGE data
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-ibge-municipalities`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ state: 'PA' }) // Pará state
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Erro ao carregar dados do IBGE');
-      }
-
-      const { data: geoJson } = await response.json();
-      
-      // Remove old layer if exists
-      removeIBGELayer();
-
-      // Add source
-      mapInstance.addSource('ibge-municipalities', {
-        type: 'geojson',
-        data: geoJson
-      });
-
-      // Add fill layer
-      mapInstance.addLayer({
-        id: 'ibge-municipalities-fill',
-        type: 'fill',
-        source: 'ibge-municipalities',
-        paint: {
-          'fill-color': 'hsl(280 65% 60%)',
-          'fill-opacity': opacity / 100
-        }
-      });
-
-      // Add outline layer
-      mapInstance.addLayer({
-        id: 'ibge-municipalities-outline',
-        type: 'line',
-        source: 'ibge-municipalities',
-        paint: {
-          'line-color': 'hsl(280 65% 45%)',
-          'line-width': 2
-        }
-      });
-
-      // Add click handler
-      mapInstance.on('click', 'ibge-municipalities-fill', (e) => {
-        if (e.features && e.features[0]) {
-          const props = e.features[0].properties;
-          onFeatureClick({
-            name: props.nome || 'Município',
-            microrregiao: props.microrregiao,
-            mesorregiao: props.mesorregiao,
-            regiao: props.regiao,
-            id: props.id
-          });
-        }
-      });
-
-      // Change cursor on hover
-      mapInstance.on('mouseenter', 'ibge-municipalities-fill', () => {
-        mapInstance.getCanvas().style.cursor = 'pointer';
-      });
-
-      mapInstance.on('mouseleave', 'ibge-municipalities-fill', () => {
-        mapInstance.getCanvas().style.cursor = '';
-      });
-
-      toast.success("Municípios carregados com sucesso");
-      
-    } catch (error) {
-      console.error('Erro ao carregar IBGE:', error);
-      toast.error("Erro ao carregar municípios");
-    }
-  };
-
-  const removeIBGELayer = () => {
-    if (!map.current) return;
-    
-    const mapInstance = map.current;
-    
-    try {
-      if (mapInstance.getLayer('ibge-municipalities-fill')) {
-        mapInstance.removeLayer('ibge-municipalities-fill');
-      }
-      if (mapInstance.getLayer('ibge-municipalities-outline')) {
-        mapInstance.removeLayer('ibge-municipalities-outline');
-      }
-      if (mapInstance.getSource('ibge-municipalities')) {
-        mapInstance.removeSource('ibge-municipalities');
-      }
-    } catch (e) {
-      console.error('Erro ao remover camada IBGE:', e);
-    }
-  };
-
-  const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0) => {
+  const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0, collection?: string) => {
     if (!map.current || !result) return;
     
     const mapInstance = map.current;
@@ -368,42 +316,72 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     const hasSentinel1VV = activeLayers.some(l => l.id === 'sentinel1-vv');
     const hasSentinel1VH = activeLayers.some(l => l.id === 'sentinel1-vh');
     const hasSentinel2 = activeLayers.some(l => l.id === 'sentinel2');
+    const hasLandsat = activeLayers.some(l => l.id === 'landsat');
+    const hasDEM = activeLayers.some(l => l.id === 'dem');
+    const hasNASADEM = activeLayers.some(l => l.id === 'nasadem');
+    const hasALOSDEM = activeLayers.some(l => l.id === 'alosdem');
     
     let imageUrl = null;
     let opacity = 0.75;
     
+    console.log("🔍 updateImageOverlay - result:", result);
+    console.log("🔍 Active layers:", { hasSentinel1VV, hasSentinel1VH, hasSentinel2, hasLandsat, hasDEM });
+    
     // Priority: Sentinel-1 VV/VH composite, then individual polarizations
     if (hasSentinel1VV && hasSentinel1VH) {
-      // Use false-color composite (VV, VH)
+      // Use rendered_preview which has proper SAS token
       imageUrl = result.assets?.rendered_preview?.href;
       opacity = Math.max(
         activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100,
         activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100
       ) / 100;
+      console.log("✅ Using VV+VH composite:", imageUrl);
     } else if (hasSentinel1VV) {
-      // Use VV polarization
-      imageUrl = result.assets?.vv?.href || result.assets?.rendered_preview?.href;
+      // Use rendered_preview which has proper SAS token
+      imageUrl = result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100) / 100;
+      console.log("✅ Using VV polarization:", imageUrl);
     } else if (hasSentinel1VH) {
-      // Use VH polarization
-      imageUrl = result.assets?.vh?.href || result.assets?.rendered_preview?.href;
+      // Use rendered_preview which has proper SAS token
+      imageUrl = result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
-    } else if (hasSentinel2) {
-      // For Sentinel-2, we would need to fetch from a different collection
-      // For now, show a message
-      toast.info("Sentinel-2 ainda não implementado", {
-        description: "Use as camadas Sentinel-1 para visualizar dados SAR"
-      });
-      return;
+      console.log("✅ Using VH polarization:", imageUrl);
+    } else if (hasSentinel2 && collection === 'sentinel-2-l2a') {
+      // Sentinel-2 True Color
+      imageUrl = result.assets?.visual?.href || result.assets?.rendered_preview?.href;
+      opacity = (activeLayers.find(l => l.id === 'sentinel2')?.opacity || 80) / 100;
+      console.log("✅ Using Sentinel-2:", imageUrl);
+    } else if (hasLandsat && collection === 'landsat-c2-l2') {
+      // Landsat True Color - usar asset correto
+      imageUrl = result.assets?.rendered_preview?.href || 
+                 result.assets?.visual?.href ||
+                 `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=landsat-c2-l2&item=${result.id}&assets=red&assets=green&assets=blue&rescale=0,30000&format=png`;
+      opacity = (activeLayers.find(l => l.id === 'landsat')?.opacity || 80) / 100;
+      console.log("✅ Using Landsat:", imageUrl);
+    } else if (hasDEM && collection === 'cop-dem-glo-30') {
+      // DEM visualization with hillshade
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=cop-dem-glo-30&item=${result.id}&assets=data&colormap=terrain&rescale=-100,3000&format=png`;
+      opacity = (activeLayers.find(l => l.id === 'dem')?.opacity || 70) / 100;
+      console.log("✅ Using DEM:", imageUrl);
+    } else if (hasNASADEM && collection === 'nasadem') {
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=nasadem&item=${result.id}&assets=elevation&colormap=terrain&rescale=0,500&format=png`;
+      opacity = (activeLayers.find(l => l.id === 'nasadem')?.opacity || 70) / 100;
+      console.log("✅ Using NASA DEM:", imageUrl);
+    } else if (hasALOSDEM && collection === 'alos-dem') {
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=alos-dem&item=${result.id}&assets=data&colormap=terrain&rescale=0,500&format=png`;
+      opacity = (activeLayers.find(l => l.id === 'alosdem')?.opacity || 70) / 100;
+      console.log("✅ Using ALOS DEM:", imageUrl);
     } else {
-      // No relevant layers enabled, remove overlay
+      console.log("⚠️ No relevant layers enabled");
       return;
     }
     
     if (!imageUrl) {
-      console.error("No image URL available");
+      console.error("❌ No image URL available");
       return;
     }
+    
+    console.log("🌍 Image URL to load:", imageUrl);
 
     const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
     const sourceId = `${layerId}-source`;
@@ -412,12 +390,15 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       // Remove old overlay if exists
       if (mapInstance.getLayer(layerId)) {
         mapInstance.removeLayer(layerId);
+        console.log(`🗑️ Removed old layer: ${layerId}`);
       }
       if (mapInstance.getSource(sourceId)) {
         mapInstance.removeSource(sourceId);
+        console.log(`🗑️ Removed old source: ${sourceId}`);
       }
 
       const [west, south, east, north] = result.bbox;
+      console.log("📦 BBox:", { west, south, east, north });
       
       // Add image source
       mapInstance.addSource(sourceId, {
@@ -430,27 +411,39 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           [west, south]
         ]
       });
+      console.log(`✅ Added image source: ${sourceId}`);
 
       // Add raster layer with dynamic opacity
+      // Colocar acima do terreno 3D se existir
+      const layers = mapInstance.getStyle().layers;
+      const firstSymbolId = layers?.find(layer => layer.type === 'symbol')?.id;
+      
       mapInstance.addLayer({
         id: layerId,
         type: 'raster',
         source: sourceId,
         paint: {
           'raster-opacity': opacity,
-          'raster-fade-duration': 300
+          'raster-fade-duration': 300,
+          'raster-resampling': 'linear'
         }
-      });
+      }, firstSymbolId);
 
-      console.log(`✅ Image overlay ${layerIndex} updated - opacity: ${opacity}`);
+      console.log(`✅ Image overlay ${layerIndex} added successfully - opacity: ${opacity}`);
+      toast.success("Imagem sobreposta ao mapa", {
+        description: `Opacidade: ${Math.round(opacity * 100)}%`
+      });
       
     } catch (error) {
       console.error(`❌ Error updating image overlay ${layerIndex}:`, error);
+      toast.error("Erro ao carregar overlay", {
+        description: "Verifique o console para detalhes"
+      });
     }
   };
 
-  const handleResultSelect = async (result: any, isMultiple: boolean = false, index: number = 0) => {
-    console.log("🎯 Selected SAR result:", result);
+  const handleResultSelect = async (result: any, collection?: string, isMultiple: boolean = false, index: number = 0) => {
+    console.log("🎯 Selected result:", result, "Collection:", collection);
 
     if (!map.current || !mapLoaded) {
       toast.error("Aguarde o mapa carregar");
@@ -465,7 +458,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       }
       
       const activeLayers = layers.filter(l => l.enabled);
-      await updateImageOverlay(result, activeLayers, index);
+      await updateImageOverlay(result, activeLayers, index, collection);
 
       if (!isMultiple) {
         // Fit map to image bounds only for single images
@@ -497,20 +490,51 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
   };
 
+  // Determine which search component to show based on active layers
+  useEffect(() => {
+    const activeLayers = layers.filter(l => l.enabled);
+    const hasSentinel1 = activeLayers.some(l => l.id.startsWith('sentinel1'));
+    const hasOther = activeLayers.some(l => ['sentinel2', 'landsat', 'dem', 'nasadem', 'alosdem'].includes(l.id));
+    
+    if (hasOther && !hasSentinel1) {
+      setActiveSearchType('planetary');
+    } else if (hasSentinel1) {
+      setActiveSearchType('sentinel1');
+    }
+  }, [layers]);
+
+  const getActiveCollection = () => {
+    const activeLayers = layers.filter(l => l.enabled);
+    if (activeLayers.some(l => l.id === 'sentinel2')) return 'sentinel-2-l2a';
+    if (activeLayers.some(l => l.id === 'landsat')) return 'landsat-c2-l2';
+    if (activeLayers.some(l => l.id === 'dem')) return 'cop-dem-glo-30';
+    if (activeLayers.some(l => l.id === 'nasadem')) return 'nasadem';
+    if (activeLayers.some(l => l.id === 'alosdem')) return 'alos-dem';
+    return 'sentinel-2-l2a';
+  };
+
   return (
-    <div className="w-full h-full">
-      <div ref={mapContainer} className="absolute inset-0" />
+    <div className="absolute inset-0">
+      <div ref={mapContainer} className="w-full h-full" />
       
-      <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
+      {activeSearchType === 'sentinel1' ? (
+        <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
+      ) : (
+        <PlanetarySearch 
+          aoi={currentAOI} 
+          activeCollection={getActiveCollection()}
+          onResultSelect={handleResultSelect} 
+        />
+      )}
       
-      {/* Botão para limpar polígonos */}
-      {currentAOI && (
-        <div className="absolute top-20 left-4 z-10">
+      {/* Botões de controle */}
+      <div className="absolute top-20 left-4 z-10 space-y-2">
+        {currentAOI && (
           <Button
             onClick={clearAllPolygons}
             variant="destructive"
             size="sm"
-            className="shadow-elevated"
+            className="shadow-elevated w-full"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -530,8 +554,27 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
             </svg>
             Limpar Polígonos
           </Button>
-        </div>
-      )}
+        )}
+        
+        <Button
+          onClick={toggle3DMode}
+          variant={is3DMode ? "default" : "outline"}
+          size="sm"
+          className="shadow-elevated w-full"
+        >
+          {is3DMode ? (
+            <>
+              <Box className="mr-2 h-4 w-4" />
+              Modo 2D
+            </>
+          ) : (
+            <>
+              <Cuboid className="mr-2 h-4 w-4" />
+              Modo 3D
+            </>
+          )}
+        </Button>
+      </div>
       
       {/* Overlay watermark */}
       <div className="absolute bottom-4 left-4 bg-card/80 backdrop-blur-sm px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground z-10">
