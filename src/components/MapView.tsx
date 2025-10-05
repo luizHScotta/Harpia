@@ -39,20 +39,42 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   console.log("MapView render - mapLoaded:", mapLoaded);
 
   useEffect(() => {
-    if (!mapContainer.current || map.current) return;
-
-    mapboxgl.accessToken = MAPBOX_TOKEN;
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [-48.5044, -1.4558], // Belém coordinates
-      zoom: 11,
-      pitch: 0,
-      antialias: true, // Melhor qualidade 3D
+    console.log("🚀 MapView useEffect - Initializing map", { 
+      hasContainer: !!mapContainer.current, 
+      hasMap: !!map.current 
     });
+    
+    if (!mapContainer.current || map.current) {
+      console.log("⏭️ Skipping map initialization", {
+        noContainer: !mapContainer.current,
+        mapExists: !!map.current
+      });
+      return;
+    }
 
-    console.log("Mapbox map initialized");
+    console.log("🗺️ Setting Mapbox token...");
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+    console.log("✅ Token set, creating map instance...");
+
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [-48.5044, -1.4558], // Belém coordinates
+        zoom: 11,
+        pitch: 0,
+        antialias: true, // Melhor qualidade 3D
+      });
+
+      console.log("✅ Mapbox map instance created");
+    } catch (error) {
+      console.error("❌ Error creating map:", error);
+      toast.error("Erro ao inicializar mapa");
+      return;
+    }
+
+
+    console.log("🎮 Adding navigation controls...");
 
     // Add navigation controls
     map.current.addControl(
@@ -62,6 +84,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       "top-right"
     );
 
+    console.log("📏 Adding scale control...");
+
     // Add scale control
     map.current.addControl(
       new mapboxgl.ScaleControl({
@@ -70,6 +94,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       }),
       "bottom-right"
     );
+
+    console.log("✏️ Adding drawing controls...");
 
     // Add drawing controls
     draw.current = new MapboxDraw({
@@ -81,6 +107,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       defaultMode: 'simple_select'
     });
     map.current.addControl(draw.current, "top-left");
+
+    console.log("✅ All controls added");
 
     // Listen to draw events
     map.current.on('draw.create', updateArea);
@@ -112,11 +140,13 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
 
     map.current.on("load", () => {
-      console.log("Mapbox map loaded successfully");
+      console.log("🎉 Mapbox map LOADED successfully!");
       setMapLoaded(true);
+      toast.success("Mapa carregado!");
       
       // Add example polygon for Belém baixadas
       if (map.current) {
+        console.log("➕ Adding example polygon...");
         // Example: Área da Cidade de Deus / Fazendinha
         map.current.addSource("belem-areas", {
           type: "geojson",
@@ -189,7 +219,11 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     });
 
     return () => {
-      map.current?.remove();
+      console.log("🧹 Cleaning up map...");
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
     };
   }, []);
 
@@ -639,8 +673,29 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   };
 
   return (
-    <div className="w-full h-full">
-      <div ref={mapContainer} className="absolute inset-0" />
+    <div className="w-full h-full relative">
+      <div 
+        ref={mapContainer} 
+        className="absolute inset-0"
+        style={{ 
+          width: '100%', 
+          height: '100%',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0
+        }} 
+      />
+      
+      {!mapLoaded && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-foreground">Carregando mapa...</p>
+          </div>
+        </div>
+      )}
       
       {activeSearchType === 'sentinel1' ? (
         <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
