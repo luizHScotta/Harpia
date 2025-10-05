@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Globe, Search, Loader2, Calendar, MapPin, Image, Minimize2, Maximize2, Mountain, Radar, Leaf, Thermometer, TreePine } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface PlanetaryResult {
   id: string;
@@ -44,6 +45,7 @@ const COLLECTIONS = {
 };
 
 const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySearchProps) => {
+  const { t } = useLanguage();
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<PlanetaryResult[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -66,8 +68,8 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
 
   const handleSearch = async () => {
     if (!aoi) {
-      toast.error("Defina uma área de interesse no mapa", {
-        description: "Use a ferramenta de desenho para criar um polígono",
+      toast.error(t("common.defineArea"), {
+        description: t("common.defineAreaDescription"),
       });
       return;
     }
@@ -93,7 +95,7 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
 
       if (data.success) {
         setResults(data.results);
-        toast.success(`${data.count} itens encontrados`, {
+        toast.success(`${data.count} ${t("planetary.itemsFound")}`, {
           description: `${COLLECTIONS[collection as keyof typeof COLLECTIONS]?.name || collection}`,
         });
       } else {
@@ -101,8 +103,8 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
       }
     } catch (error: any) {
       console.error("Search error:", error);
-      toast.error("Erro na busca", {
-        description: error.message || "Tente novamente",
+      toast.error(t("common.searching"), {
+        description: error.message,
       });
       setResults([]);
     } finally {
@@ -128,7 +130,7 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CollectionIcon className={`h-5 w-5 ${collectionInfo?.color || 'text-primary'}`} />
-              <h3 className="font-semibold text-foreground">Busca Planetary Computer</h3>
+              <h3 className="font-semibold text-foreground">{t("planetary.title")}</h3>
             </div>
             <Button
               variant="ghost"
@@ -144,7 +146,7 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
             <>
               <div className="space-y-2">
                 <div className="space-y-1">
-                  <Label htmlFor="collection" className="text-xs">Coleção</Label>
+                  <Label htmlFor="collection" className="text-xs">{t("planetary.collection")}</Label>
                   <Select value={collection} onValueChange={setCollection}>
                     <SelectTrigger className="text-xs">
                       <SelectValue />
@@ -158,7 +160,7 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="startDate" className="text-xs">Data Inicial</Label>
+                  <Label htmlFor="startDate" className="text-xs">{t("common.startDate")}</Label>
                   <Input
                     id="startDate"
                     type="date"
@@ -169,7 +171,7 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
                 </div>
                 
                 <div className="space-y-1">
-                  <Label htmlFor="endDate" className="text-xs">Data Final</Label>
+                  <Label htmlFor="endDate" className="text-xs">{t("common.endDate")}</Label>
                   <Input
                     id="endDate"
                     type="date"
@@ -189,19 +191,19 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
                 {isSearching ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Buscando...
+                    {t("common.searching")}
                   </>
                 ) : (
                   <>
                     <Search className="h-4 w-4 mr-2" />
-                    Buscar Dados
+                    {t("planetary.searchButton")}
                   </>
                 )}
               </Button>
 
               {!aoi && (
                 <p className="text-xs text-muted-foreground">
-                  Desenhe um polígono no mapa para definir a área de interesse
+                  {t("layers.search.drawArea")}
                 </p>
               )}
 
@@ -209,7 +211,7 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
                 <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-foreground">
-                      Resultados ({results.length})
+                      {t("planetary.results")} ({results.length})
                     </span>
                     {results.length > 1 && (
                       <Button
@@ -219,18 +221,18 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
                           results.forEach((result, index) => {
                             setTimeout(() => onResultSelect(result, collection, true, index), index * 100);
                           });
-                          toast.success(`Carregando ${results.length} imagens...`);
+                          toast.success(t("planetary.loadingImages"));
                         }}
                         className="text-xs"
                       >
-                        Carregar Todas
+                        {t("planetary.loadAll")}
                       </Button>
                     )}
                   </div>
 
                   {results.length === 0 && !isSearching && (
                     <div className="text-center py-4 text-sm text-muted-foreground">
-                      Nenhum item encontrado
+                      {t("planetary.noResults")}
                     </div>
                   )}
 
@@ -256,20 +258,20 @@ const PlanetarySearch = ({ aoi, activeCollection, onResultSelect }: PlanetarySea
                         {result.cloudCover !== undefined && (
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <MapPin className="h-3 w-3" />
-                            <span>Nuvens: {result.cloudCover.toFixed(1)}%</span>
+                            <span>{t("planetary.clouds")} {result.cloudCover.toFixed(1)}%</span>
                           </div>
                         )}
 
                         <div className="flex items-center gap-2 text-xs">
                           <Image className="h-3 w-3 text-muted-foreground" />
                           <span className="text-muted-foreground">
-                            {result.assetKeys.length} assets disponíveis
+                            {result.assetKeys.length} {t("planetary.assetsAvailable")}
                           </span>
                         </div>
 
                         <div className="pt-1 border-t border-border">
                           <span className="text-xs text-primary font-medium">
-                            Clique para visualizar no mapa
+                            {t("planetary.clickToView")}
                           </span>
                         </div>
                       </div>

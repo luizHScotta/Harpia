@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Satellite, Search, Loader2, Calendar, MapPin, Image, Minimize2, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Sentinel1Result {
   id: string;
@@ -25,6 +26,7 @@ interface Sentinel1SearchProps {
 }
 
 const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
+  const { t } = useLanguage();
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState<Sentinel1Result[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -58,8 +60,8 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
 
   const handleSearch = async () => {
     if (!aoi) {
-      toast.error("Defina uma área de interesse no mapa", {
-        description: "Use a ferramenta de desenho para criar um polígono",
+      toast.error(t("common.defineArea"), {
+        description: t("common.defineAreaDescription"),
       });
       return;
     }
@@ -95,12 +97,12 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
         const collectionName = collection === 'sentinel-1-grd' ? 'GRD' : 'RTC';
         
         if (isLargeArea && data.count > 1) {
-          toast.success(`${data.count} cenas encontradas (área grande)`, {
-            description: `Clique em "Carregar Todas" para visualizar o mosaico completo`,
+          toast.success(`${data.count} ${t("sentinel1.largeScenesFound")}`, {
+            description: t("sentinel1.largeScenesDescription"),
           });
         } else {
-          toast.success(`${data.count} cenas encontradas`, {
-            description: `Sentinel-1 ${collectionName} de ${startDate} a ${endDate}`,
+          toast.success(`${data.count} ${t("sentinel1.scenesFound")}`, {
+            description: `Sentinel-1 ${collectionName} ${t("sentinel1.scenesDescription")} ${startDate} ${t("common.to")} ${endDate}`,
           });
         }
       } else {
@@ -108,8 +110,8 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
       }
     } catch (error: any) {
       console.error("Search error:", error);
-      toast.error("Erro na busca", {
-        description: error.message || "Tente novamente",
+      toast.error(t("common.searching"), {
+        description: error.message,
       });
       setResults([]);
     } finally {
@@ -134,7 +136,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Satellite className="h-5 w-5 text-sar-primary" />
-              <h3 className="font-semibold text-foreground">Busca Sentinel-1</h3>
+              <h3 className="font-semibold text-foreground">{t("sentinel1.title")}</h3>
             </div>
             <Button
               variant="ghost"
@@ -151,7 +153,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
 
           <div className="space-y-2">
             <div className="space-y-1">
-              <Label htmlFor="collection" className="text-xs">Coleção</Label>
+              <Label htmlFor="collection" className="text-xs">{t("sentinel1.collection")}</Label>
               <Select value={collection} onValueChange={setCollection}>
                 <SelectTrigger className="text-xs">
                   <SelectValue />
@@ -164,7 +166,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="startDate" className="text-xs">Data Inicial</Label>
+              <Label htmlFor="startDate" className="text-xs">{t("common.startDate")}</Label>
               <Input
                 id="startDate"
                 type="date"
@@ -175,7 +177,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
             </div>
             
             <div className="space-y-1">
-              <Label htmlFor="endDate" className="text-xs">Data Final</Label>
+              <Label htmlFor="endDate" className="text-xs">{t("common.endDate")}</Label>
               <Input
                 id="endDate"
                 type="date"
@@ -195,19 +197,19 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
             {isSearching ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Buscando...
+                {t("common.searching")}
               </>
             ) : (
               <>
                 <Search className="h-4 w-4 mr-2" />
-                Buscar Dados SAR
+                {t("sentinel1.searchButton")}
               </>
             )}
           </Button>
 
           {!aoi && (
             <p className="text-xs text-muted-foreground">
-              Desenhe um polígono no mapa para definir a área de interesse
+              {t("layers.search.drawArea")}
             </p>
           )}
 
@@ -215,7 +217,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
             <div className="mt-4 space-y-2 max-h-96 overflow-y-auto">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-foreground">
-                  Resultados ({results.length})
+                  {t("sentinel1.results")} ({results.length})
                 </span>
                 {results.length > 1 && (
                   <Button
@@ -225,18 +227,18 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
                       results.forEach((result, index) => {
                         setTimeout(() => onResultSelect(result, collection, true, index), index * 100);
                       });
-                      toast.success(`Carregando ${results.length} imagens...`);
+                      toast.success(t("planetary.loadingImages"));
                     }}
                     className="text-xs"
                   >
-                    Carregar Todas
+                    {t("sentinel1.loadAll")}
                   </Button>
                 )}
               </div>
 
               {results.length === 0 && !isSearching && (
                 <div className="text-center py-4 text-sm text-muted-foreground">
-                  Nenhuma cena encontrada
+                  {t("sentinel1.noResults")}
                 </div>
               )}
 
@@ -269,13 +271,13 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
                     <div className="flex items-center gap-2 text-xs">
                       <Image className="h-3 w-3 text-muted-foreground" />
                       <span className="text-muted-foreground">
-                        {(result as any).assetKeys?.length || 0} assets disponíveis
+                        {(result as any).assetKeys?.length || 0} {t("sentinel1.assetsAvailable")}
                       </span>
                     </div>
 
                     <div className="pt-1 border-t border-border">
                       <span className="text-xs text-primary font-medium">
-                        Clique para visualizar no mapa
+                        {t("sentinel1.clickToView")}
                       </span>
                     </div>
                   </div>

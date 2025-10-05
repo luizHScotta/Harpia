@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2 } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { 
   Radar, 
   Eye, 
@@ -49,6 +50,7 @@ interface LayerControlProps {
 }
 
 const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, isSearching }: LayerControlProps) => {
+  const { t } = useLanguage();
   const [openCategories, setOpenCategories] = useState<string[]>([
     "SAR",
     "Óptico",
@@ -70,11 +72,11 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, i
   const [endDate, setEndDate] = useState(defaults.end);
 
   const categories = [
-    { id: "SAR", name: "Dados SAR (Radar)", color: "text-sar" },
-    { id: "Óptico", name: "Dados Ópticos", color: "text-optical" },
-    { id: "Topografia", name: "Dados Topográficos", color: "text-topo" },
-    { id: "Análises", name: "Produtos Derivados", color: "text-ndvi" },
-    { id: "Socioambiental", name: "Socioambiental", color: "text-secondary" }
+    { id: "SAR", name: t("layers.categories.sar"), color: "text-sar" },
+    { id: "Óptico", name: t("layers.categories.optical"), color: "text-optical" },
+    { id: "Topografia", name: t("layers.categories.topography"), color: "text-topo" },
+    { id: "Análises", name: t("layers.categories.analysis"), color: "text-ndvi" },
+    { id: "Socioambiental", name: t("layers.categories.socioenvironmental"), color: "text-secondary" }
   ];
 
   const toggleCategory = (categoryId: string) => {
@@ -91,10 +93,10 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, i
     <div className="space-y-4">
       <div className="mb-6">
         <h2 className="text-lg font-semibold text-foreground mb-1">
-          Camadas de Dados
+          {t("layers.title")}
         </h2>
         <p className="text-xs text-muted-foreground">
-          Selecione as camadas para visualizar no mapa
+          {t("layers.subtitle")}
         </p>
       </div>
 
@@ -102,26 +104,26 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, i
       {hasActiveLayer && (
         <Card className="bg-card border-border p-4 space-y-3">
           <h3 className="text-sm font-semibold text-foreground">
-            Busca de Dados
+            {t("layers.search.title")}
           </h3>
           
           {aoi ? (
             <div className="p-2 bg-primary/10 rounded-md border border-primary/20">
               <p className="text-xs text-foreground font-medium">
-                ✓ Área de interesse definida
+                {t("layers.search.areaSet")}
               </p>
             </div>
           ) : (
             <div className="p-2 bg-muted/50 rounded-md border border-border">
               <p className="text-xs text-muted-foreground">
-                Desenhe um polígono no mapa para definir a área de interesse
+                {t("layers.search.drawArea")}
               </p>
             </div>
           )}
           
           <div className="space-y-2">
             <div className="space-y-1">
-              <Label htmlFor="startDate" className="text-xs">Data Inicial</Label>
+              <Label htmlFor="startDate" className="text-xs">{t("common.startDate")}</Label>
               <Input
                 id="startDate"
                 type="date"
@@ -132,7 +134,7 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, i
             </div>
             
             <div className="space-y-1">
-              <Label htmlFor="endDate" className="text-xs">Data Final</Label>
+              <Label htmlFor="endDate" className="text-xs">{t("common.endDate")}</Label>
               <Input
                 id="endDate"
                 type="date"
@@ -153,12 +155,12 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, i
             {isSearching ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Buscando...
+                {t("common.searching")}
               </>
             ) : (
               <>
                 <Search className="h-4 w-4 mr-2" />
-                Pesquisar
+                {t("common.search")}
               </>
             )}
           </Button>
@@ -214,7 +216,7 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, i
                           <div className="pl-7">
                             <div className="flex items-center gap-2">
                               <Label className="text-xs text-muted-foreground w-20">
-                                Opacidade:
+                                {t("layers.search.opacity")}
                               </Label>
                               <Slider
                                 value={[layer.opacity]}
