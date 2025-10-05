@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Globe, Search, Loader2, Calendar, MapPin, Image, Minimize2, Maximize2, Mountain } from "lucide-react";
+import { Globe, Search, Loader2, Calendar, MapPin, Image, Minimize2, Maximize2, Mountain, Radar, Leaf, Thermometer, TreePine } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -29,7 +29,15 @@ interface PlanetarySearchProps {
 
 const COLLECTIONS = {
   'sentinel-2-l2a': { name: 'Sentinel-2 L2A', icon: Globe, color: 'text-optical' },
+  'sentinel-1-grd': { name: 'Sentinel-1 SAR', icon: Radar, color: 'text-radar' },
   'landsat-c2-l2': { name: 'Landsat 8/9 L2', icon: Globe, color: 'text-optical' },
+  'modis-09Q1-061': { name: 'MODIS Reflectância', icon: Globe, color: 'text-optical' },
+  'modis-13A1-061': { name: 'MODIS Vegetação', icon: Leaf, color: 'text-vegetation' },
+  'modis-17A3HGF-061': { name: 'MODIS Biomassa', icon: TreePine, color: 'text-biomass' },
+  'modis-11A1-061': { name: 'MODIS Temperatura', icon: Thermometer, color: 'text-temperature' },
+  'modis-21A2-061': { name: 'MODIS Temperatura LST', icon: Thermometer, color: 'text-temperature' },
+  'hgb': { name: 'Biomassa Global', icon: TreePine, color: 'text-biomass' },
+  'esa-worldcover': { name: 'ESA WorldCover', icon: Globe, color: 'text-landcover' },
   'cop-dem-glo-30': { name: 'Copernicus DEM 30m', icon: Mountain, color: 'text-topo' },
   'nasadem': { name: 'NASA DEM', icon: Mountain, color: 'text-topo' },
   'alos-dem': { name: 'ALOS World 3D', icon: Mountain, color: 'text-topo' },
