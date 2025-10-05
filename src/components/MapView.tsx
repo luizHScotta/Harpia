@@ -611,6 +611,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
 
     const activeLayers = layers.filter(l => l.enabled);
     const hasSentinel1 = activeLayers.some(l => l.id.startsWith('sentinel1'));
+    const activeCollections = getActiveCollections();
     
     setIsSearching(true);
 
@@ -618,66 +619,91 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       const startISO = new Date(startDate + 'T00:00:00Z').toISOString();
       const endISO = new Date(endDate + 'T23:59:59Z').toISOString();
 
+      const searchPromises = [];
+
+      // Buscar Sentinel-1 se estiver ativo
       if (hasSentinel1) {
-        // Search Sentinel-1
-        const collection = 'sentinel-1-grd';
-        const { data, error } = await supabase.functions.invoke('search-sentinel1', {
+        const sentinel1Promise = supabase.functions.invoke('search-sentinel1', {
           body: {
             aoi: currentAOI,
             startDate: startISO,
             endDate: endISO,
             maxResults: 50,
-            collection: collection
+            collection: 'sentinel-1-grd'
           }
-        });
+        }).then(response => ({
+          ...response,
+          collection: 'sentinel-1-grd'
+        }));
+        searchPromises.push(sentinel1Promise);
+      }
 
-        if (error) throw error;
-
-        if (data.success && data.results.length > 0) {
-          const result = data.results[0];
-          await handleResultSelect(result, collection);
-          
-          // Passar todos os resultados para exibir na galeria
-          onSearchComplete(handleSearch, isSearching, data.results, handleResultSelect);
-          
-          toast.success(`${data.count} cenas encontradas`, {
-            description: `Carregando primeira cena...`,
-          });
-        } else {
-          toast.warning("Nenhuma cena encontrada", {
-            description: "Tente outro período ou área"
-          });
+      // Buscar outras coleções ativas
+      for (const collection of activeCollections) {
+        if (collection !== 'sentinel-1-grd') {
+          const promise = supabase.functions.invoke('search-planetary-data', {
+            body: {
+              aoi: currentAOI,
+              startDate: startISO,
+              endDate: endISO,
+              maxResults: 50,
+              collection: collection
+            }
+          }).then(response => ({
+            ...response,
+            collection: collection
+          }));
+          searchPromises.push(promise);
         }
+      }
+
+      // Executar todas as buscas em paralelo
+      const results = await Promise.all(searchPromises);
+      
+      // Agregar todos os resultados
+      let allResults: any[] = [];
+      let totalCount = 0;
+      let hasError = false;
+
+      for (const result of results) {
+        if (result.error) {
+          console.error(`Erro ao buscar ${result.collection}:`, result.error);
+          hasError = true;
+          continue;
+        }
+
+        if (result.data?.success && result.data.results?.length > 0) {
+          // Adicionar a coleção a cada resultado para identificação
+          const resultsWithCollection = result.data.results.map((r: any) => ({
+            ...r,
+            searchCollection: result.collection
+          }));
+          allResults = [...allResults, ...resultsWithCollection];
+          totalCount += result.data.count || result.data.results.length;
+        }
+      }
+
+      if (allResults.length > 0) {
+        // Ordenar por data (mais recente primeiro)
+        allResults.sort((a, b) => 
+          new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
+        );
+
+        // Carregar o primeiro resultado
+        const firstResult = allResults[0];
+        await handleResultSelect(firstResult, firstResult.searchCollection);
+        
+        // Passar todos os resultados para exibir na galeria
+        onSearchComplete(handleSearch, isSearching, allResults, handleResultSelect);
+        
+        toast.success(`${totalCount} imagens encontradas`, {
+          description: `${allResults.length} imagens de ${searchPromises.length} fonte(s)`,
+        });
       } else {
-        // Search Planetary Computer
-        const collection = getActiveCollection();
-        const { data, error } = await supabase.functions.invoke('search-planetary-data', {
-          body: {
-            aoi: currentAOI,
-            startDate: startISO,
-            endDate: endISO,
-            maxResults: 50,
-            collection: collection
-          }
+        onSearchComplete(handleSearch, isSearching, [], handleResultSelect);
+        toast.warning("Nenhuma imagem encontrada", {
+          description: hasError ? "Algumas buscas falharam. Tente outro período ou área" : "Tente outro período ou área"
         });
-
-        if (error) throw error;
-
-        if (data.success && data.results.length > 0) {
-          const result = data.results[0];
-          await handleResultSelect(result, collection);
-          
-          // Passar todos os resultados para exibir na galeria
-          onSearchComplete(handleSearch, isSearching, data.results, handleResultSelect);
-          
-          toast.success(`${data.count} itens encontrados`, {
-            description: `Carregando primeiro item...`,
-          });
-        } else {
-          toast.warning("Nenhum item encontrado", {
-            description: "Tente outro período ou área"
-          });
-        }
       }
     } catch (error: any) {
       console.error("Search error:", error);
@@ -694,20 +720,44 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
     onSearchComplete(handleSearch, isSearching, undefined, handleResultSelect);
   }, [currentAOI, isSearching]);
 
-  const getActiveCollection = () => {
+  const getActiveCollections = () => {
     const activeLayers = layers.filter(l => l.enabled);
-    if (activeLayers.some(l => l.id === 'sentinel2')) return 'sentinel-2-l2a';
-    if (activeLayers.some(l => l.id === 'landsat')) return 'landsat-c2-l2';
-    if (activeLayers.some(l => l.id === 'dem')) return 'cop-dem-glo-30';
-    if (activeLayers.some(l => l.id === 'nasadem')) return 'nasadem';
-    if (activeLayers.some(l => l.id === 'alosdem')) return 'alos-dem';
-    if (activeLayers.some(l => l.id === 'modis-reflectance')) return 'modis-09Q1-061';
-    if (activeLayers.some(l => l.id === 'modis-vegetation')) return 'modis-13A1-061';
-    if (activeLayers.some(l => l.id === 'modis-biomass')) return 'modis-17A3HGF-061';
-    if (activeLayers.some(l => l.id === 'modis-temperature')) return 'modis-11A1-061';
-    if (activeLayers.some(l => l.id === 'global-biomass')) return 'hgb';
-    if (activeLayers.some(l => l.id === 'esa-worldcover')) return 'esa-worldcover';
-    return 'sentinel-2-l2a';
+    const collections: string[] = [];
+
+    // Mapear camadas ativas para suas coleções correspondentes
+    const layerToCollection: Record<string, string> = {
+      'sentinel2': 'sentinel-2-l2a',
+      'landsat': 'landsat-c2-l2',
+      'dem': 'cop-dem-glo-30',
+      'nasadem': 'nasadem',
+      'alosdem': 'alos-dem',
+      'modis-reflectance': 'modis-09Q1-061',
+      'modis-vegetation': 'modis-13A1-061',
+      'modis-biomass': 'modis-17A3HGF-061',
+      'modis-temperature': 'modis-11A1-061',
+      'global-biomass': 'hgb',
+      'esa-worldcover': 'esa-worldcover'
+    };
+
+    // Adicionar coleções de todas as camadas ativas
+    activeLayers.forEach(layer => {
+      const collection = layerToCollection[layer.id];
+      if (collection && !collections.includes(collection)) {
+        collections.push(collection);
+      }
+    });
+
+    // Se nenhuma coleção específica foi encontrada, usar Sentinel-2 como padrão
+    if (collections.length === 0) {
+      collections.push('sentinel-2-l2a');
+    }
+
+    return collections;
+  };
+
+  const getActiveCollection = () => {
+    const collections = getActiveCollections();
+    return collections[0] || 'sentinel-2-l2a';
   };
 
   return (
