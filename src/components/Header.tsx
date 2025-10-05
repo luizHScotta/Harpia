@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import nasaLogo from "@/assets/nasa-logo.jpeg";
-import projectLogo from "@/assets/project-logo.jpeg";
+import projectLogo from "@/assets/project-logo.png";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
