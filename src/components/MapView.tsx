@@ -771,7 +771,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
 
       {/* Legend */}
       {layers.some(l => l.enabled) && (
-        <div className="absolute top-4 right-4 bg-card/95 backdrop-blur-sm p-4 rounded-lg border border-border shadow-elevated max-w-xs">
+        <div className="absolute top-24 right-4 bg-card/95 backdrop-blur-sm p-4 rounded-lg border border-border shadow-elevated max-w-xs">
           <h4 className="text-sm font-semibold mb-3 text-foreground">
             Camadas Ativas
           </h4>
