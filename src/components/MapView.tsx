@@ -501,14 +501,20 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       const [west, south, east, north] = result.bbox;
       console.log("📦 BBox:", { west, south, east, north });
       
-      // Recortar imagem pelo polígono
-      const polygonCoords = currentAOI.geometry.coordinates[0];
-      const clippedImageUrl = await clipImageToPolygon(imageUrl, result.bbox, polygonCoords);
+      // Recortar imagem pelo polígono se disponível
+      let finalImageUrl = imageUrl;
+      if (currentAOI?.geometry?.coordinates?.[0]) {
+        const polygonCoords = currentAOI.geometry.coordinates[0];
+        finalImageUrl = await clipImageToPolygon(imageUrl, result.bbox, polygonCoords);
+        console.log("✂️ Image clipped to polygon");
+      } else {
+        console.log("⚠️ No AOI polygon available, using full image");
+      }
       
-      // Add image source com imagem recortada
+      // Add image source
       mapInstance.addSource(sourceId, {
         type: 'image',
-        url: clippedImageUrl,
+        url: finalImageUrl,
         coordinates: [
           [west, north],
           [east, north],
@@ -566,13 +572,6 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       await updateImageOverlay(result, activeLayers, index, collection);
 
       if (!isMultiple) {
-        // Fit map to image bounds only for single images
-        const [west, south, east, north] = result.bbox;
-        map.current.fitBounds([[west, south], [east, north]], {
-          padding: 50,
-          duration: 1000
-        });
-
         toast.success("Imagem carregada", {
           description: `${result.collection} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
         });
