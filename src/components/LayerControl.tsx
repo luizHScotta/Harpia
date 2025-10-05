@@ -399,13 +399,13 @@ export const defaultLayers: Layer[] = [
   },
   {
     id: "dem-terrain",
-    name: "Relevo (DEM 90m)",
+    name: "Visualizar Terreno",
     category: "Topografia",
     icon: Mountain,
     color: "hsl(30 70% 50%)",
     enabled: false,
     opacity: 70,
-    description: "Copernicus DEM combinado com dados SAR (carrega ao ativar)"
+    description: "Copernicus DEM 90m - modelo digital de elevação (carrega ao ativar)"
   },
   {
     id: "risk",

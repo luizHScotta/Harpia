@@ -218,6 +218,29 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     updateImageOverlay(currentImageResult, activeLayers);
   }, [layers, mapLoaded, currentAOI, currentImageResult]);
 
+  // Update opacity of all existing raster layers dynamically
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+
+    layers.forEach(layer => {
+      // Find all map layers that might be associated with this control layer
+      const mapLayers = ['sar-overlay', 'sar-overlay-1', 'sar-overlay-2', 'sar-overlay-3'];
+      
+      mapLayers.forEach(layerId => {
+        if (map.current?.getLayer(layerId)) {
+          const layerStyle = map.current.getLayer(layerId);
+          
+          // Update opacity based on layer settings
+          if (layerStyle && layerStyle.type === 'raster') {
+            const opacity = layer.opacity / 100;
+            map.current.setPaintProperty(layerId, 'raster-opacity', opacity);
+            console.log(`🎨 Updated opacity for ${layerId}: ${opacity}`);
+          }
+        }
+      });
+    });
+  }, [layers.map(l => l.opacity).join(','), mapLoaded]);
+
   const clearAllPolygons = () => {
     if (draw.current) {
       draw.current.deleteAll();
@@ -520,6 +543,12 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       imageUrl = result.assets?.map?.href || result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'esa-worldcover')?.opacity || 75) / 100;
       console.log("✅ Using ESA WorldCover:", imageUrl);
+    } else if (hasDEMTerrain && collection === 'cop-dem-glo-90') {
+      // Copernicus DEM with hillshade visualization
+      const itemId = result.id;
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=cop-dem-glo-90&item=${itemId}&assets=data&colormap_name=terrain&rescale=0,1000&format=png`;
+      opacity = (activeLayers.find(l => l.id === 'dem-terrain')?.opacity || 70) / 100;
+      console.log("✅ Using Copernicus DEM:", imageUrl);
     } else {
       console.log("⚠️ No relevant layers enabled");
       return;
