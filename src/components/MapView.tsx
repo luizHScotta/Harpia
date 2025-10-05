@@ -4,11 +4,10 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { Layer } from "./LayerControl";
-import Sentinel1Search from "./Sentinel1Search";
-import PlanetarySearch from "./PlanetarySearch";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Box, Cuboid } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 // Mapbox token configured
 const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
@@ -16,6 +15,8 @@ const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R
 interface MapViewProps {
   layers: Layer[];
   onFeatureClick: (data: any) => void;
+  onAOIChange: (aoi: any) => void;
+  onSearchComplete: (handleSearch: (start: string, end: string) => Promise<void>, isSearching: boolean) => void;
 }
 
 interface SatelliteLayer {
@@ -26,7 +27,7 @@ interface SatelliteLayer {
   opacity?: number;
 }
 
-const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
+const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const draw = useRef<MapboxDraw | null>(null);
@@ -34,7 +35,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const [currentAOI, setCurrentAOI] = useState<any>(null);
   const [currentImageResult, setCurrentImageResult] = useState<any>(null);
   const [is3DMode, setIs3DMode] = useState(false);
-  const [activeSearchType, setActiveSearchType] = useState<'sentinel1' | 'planetary'>('sentinel1');
+  const [isSearching, setIsSearching] = useState(false);
 
   console.log("MapView render - mapLoaded:", mapLoaded);
 
@@ -98,14 +99,17 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
             draw.current?.delete(feature.id as string);
           });
           setCurrentAOI(latestFeature.geometry);
+          onAOIChange(latestFeature.geometry);
           console.log("AOI updated (latest only):", latestFeature.geometry);
         } else {
           const polygon = data.features[0];
           setCurrentAOI(polygon.geometry);
+          onAOIChange(polygon.geometry);
           console.log("AOI updated:", polygon.geometry);
         }
       } else {
         setCurrentAOI(null);
+        onAOIChange(null);
         // Remove image overlay when polygon is deleted
         removeImageOverlay();
       }
@@ -521,23 +525,90 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
   };
 
-  // Determine suggested search type based on active layers (user can override)
-  useEffect(() => {
+  const handleSearch = async (startDate: string, endDate: string) => {
+    if (!currentAOI) {
+      toast.error("Defina uma área de interesse no mapa", {
+        description: "Use a ferramenta de desenho para criar um polígono",
+      });
+      return;
+    }
+
     const activeLayers = layers.filter(l => l.enabled);
     const hasSentinel1 = activeLayers.some(l => l.id.startsWith('sentinel1'));
-    const hasOther = activeLayers.some(l => 
-      ['sentinel2', 'landsat', 'dem', 'nasadem', 'alosdem', 
-       'modis-reflectance', 'modis-vegetation', 'modis-biomass', 
-       'modis-temperature', 'global-biomass', 'esa-worldcover'].includes(l.id)
-    );
     
-    // Auto-suggest but don't force change
-    if (hasOther && !hasSentinel1 && activeSearchType === 'sentinel1') {
-      setActiveSearchType('planetary');
-    } else if (hasSentinel1 && !hasOther && activeSearchType === 'planetary') {
-      setActiveSearchType('sentinel1');
+    setIsSearching(true);
+
+    try {
+      const startISO = new Date(startDate + 'T00:00:00Z').toISOString();
+      const endISO = new Date(endDate + 'T23:59:59Z').toISOString();
+
+      if (hasSentinel1) {
+        // Search Sentinel-1
+        const collection = 'sentinel-1-grd';
+        const { data, error } = await supabase.functions.invoke('search-sentinel1', {
+          body: {
+            aoi: currentAOI,
+            startDate: startISO,
+            endDate: endISO,
+            maxResults: 50,
+            collection: collection
+          }
+        });
+
+        if (error) throw error;
+
+        if (data.success && data.results.length > 0) {
+          const result = data.results[0];
+          await handleResultSelect(result, collection);
+          toast.success(`${data.count} cenas encontradas`, {
+            description: `Carregando primeira cena...`,
+          });
+        } else {
+          toast.warning("Nenhuma cena encontrada", {
+            description: "Tente outro período ou área"
+          });
+        }
+      } else {
+        // Search Planetary Computer
+        const collection = getActiveCollection();
+        const { data, error } = await supabase.functions.invoke('search-planetary-data', {
+          body: {
+            aoi: currentAOI,
+            startDate: startISO,
+            endDate: endISO,
+            maxResults: 50,
+            collection: collection
+          }
+        });
+
+        if (error) throw error;
+
+        if (data.success && data.results.length > 0) {
+          const result = data.results[0];
+          await handleResultSelect(result, collection);
+          toast.success(`${data.count} itens encontrados`, {
+            description: `Carregando primeiro item...`,
+          });
+        } else {
+          toast.warning("Nenhum item encontrado", {
+            description: "Tente outro período ou área"
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error("Search error:", error);
+      toast.error("Erro na busca", {
+        description: error.message || "Tente novamente",
+      });
+    } finally {
+      setIsSearching(false);
     }
-  }, [layers]);
+  };
+
+  // Expose search function to parent
+  useEffect(() => {
+    onSearchComplete(handleSearch, isSearching);
+  }, [isSearching]);
 
   const getActiveCollection = () => {
     const activeLayers = layers.filter(l => l.enabled);
@@ -559,68 +630,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     <div className="absolute inset-0">
       <div ref={mapContainer} className="w-full h-full" />
       
-      {/* Seletor de tipo de busca */}
-      <div className="absolute top-4 left-4 z-10 flex gap-2">
-        <Button
-          onClick={() => setActiveSearchType('sentinel1')}
-          variant={activeSearchType === 'sentinel1' ? 'default' : 'outline'}
-          size="sm"
-          className="shadow-elevated"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="mr-2"
-          >
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-          </svg>
-          Sentinel-1
-        </Button>
-        <Button
-          onClick={() => setActiveSearchType('planetary')}
-          variant={activeSearchType === 'planetary' ? 'default' : 'outline'}
-          size="sm"
-          className="shadow-elevated"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="mr-2"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-            <path d="M2 12h20" />
-          </svg>
-          Outros Satélites
-        </Button>
-      </div>
-      
-      {activeSearchType === 'sentinel1' ? (
-        <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
-      ) : (
-        <PlanetarySearch 
-          aoi={currentAOI} 
-          activeCollection={getActiveCollection()}
-          onResultSelect={handleResultSelect} 
-        />
-      )}
-      
       {/* Botões de controle */}
-      <div className="absolute top-20 left-4 z-10 space-y-2">
+      <div className="absolute top-4 left-4 z-10 space-y-2">
         {currentAOI && (
           <Button
             onClick={clearAllPolygons}

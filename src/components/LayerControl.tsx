@@ -4,6 +4,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Search, Loader2 } from "lucide-react";
 import { 
   Radar, 
   Eye, 
@@ -40,14 +43,31 @@ interface LayerControlProps {
   layers: Layer[];
   onLayerToggle: (id: string) => void;
   onOpacityChange: (id: string, opacity: number) => void;
+  aoi: any | null;
+  onSearch: (startDate: string, endDate: string) => void;
+  isSearching: boolean;
 }
 
-const LayerControl = ({ layers, onLayerToggle, onOpacityChange }: LayerControlProps) => {
+const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, isSearching }: LayerControlProps) => {
   const [openCategories, setOpenCategories] = useState<string[]>([
     "SAR",
     "Óptico",
     "Análises"
   ]);
+  
+  const getDefaultDates = () => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 90);
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0]
+    };
+  };
+  
+  const defaults = getDefaultDates();
+  const [startDate, setStartDate] = useState(defaults.start);
+  const [endDate, setEndDate] = useState(defaults.end);
 
   const categories = [
     { id: "SAR", name: "Dados SAR (Radar)", color: "text-sar" },
@@ -65,6 +85,8 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange }: LayerControlPr
     );
   };
 
+  const hasActiveLayer = layers.some(l => l.enabled);
+
   return (
     <div className="space-y-4">
       <div className="mb-6">
@@ -75,6 +97,65 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange }: LayerControlPr
           Selecione as camadas para visualizar no mapa
         </p>
       </div>
+
+      {/* Search Controls - shown when layer is active */}
+      {hasActiveLayer && (
+        <Card className="bg-card border-border p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-foreground">
+            Busca de Dados
+          </h3>
+          
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label htmlFor="startDate" className="text-xs">Data Inicial</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+            
+            <div className="space-y-1">
+              <Label htmlFor="endDate" className="text-xs">Data Final</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="text-xs"
+              />
+            </div>
+          </div>
+
+          <Button
+            onClick={() => onSearch(startDate, endDate)}
+            disabled={isSearching || !aoi}
+            className="w-full"
+            variant="default"
+            size="sm"
+          >
+            {isSearching ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Buscando...
+              </>
+            ) : (
+              <>
+                <Search className="h-4 w-4 mr-2" />
+                Pesquisar
+              </>
+            )}
+          </Button>
+
+          {!aoi && (
+            <p className="text-xs text-muted-foreground">
+              Desenhe um polígono no mapa para definir a área de interesse
+            </p>
+          )}
+        </Card>
+      )}
 
       {categories.map((category) => {
         const categoryLayers = layers.filter(l => l.category === category.id);

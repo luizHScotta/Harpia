@@ -10,6 +10,9 @@ const Index = () => {
   const [layers, setLayers] = useState<Layer[]>(defaultLayers);
   const [selectedFeature, setSelectedFeature] = useState<any>(null);
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
+  const [currentAOI, setCurrentAOI] = useState<any>(null);
+  const [handleSearch, setHandleSearch] = useState<(start: string, end: string) => Promise<void>>(() => async () => {});
+  const [isSearching, setIsSearching] = useState(false);
 
   const handleLayerToggle = (id: string) => {
     setLayers(prev =>
@@ -35,6 +38,15 @@ const Index = () => {
     });
   };
 
+  const handleAOIChange = (aoi: any) => {
+    setCurrentAOI(aoi);
+  };
+
+  const handleSearchUpdate = (searchFn: (start: string, end: string) => Promise<void>, searching: boolean) => {
+    setHandleSearch(() => searchFn);
+    setIsSearching(searching);
+  };
+
   const handleExport = () => {
     toast.success("Relatório em preparação", {
       description: "O download iniciará em instantes",
@@ -56,13 +68,21 @@ const Index = () => {
               layers={layers}
               onLayerToggle={handleLayerToggle}
               onOpacityChange={handleOpacityChange}
+              aoi={currentAOI}
+              onSearch={handleSearch}
+              isSearching={isSearching}
             />
           </aside>
         )}
 
         {/* Map Container */}
         <main className="flex-1 relative">
-          <MapView layers={layers} onFeatureClick={handleFeatureClick} />
+          <MapView 
+            layers={layers} 
+            onFeatureClick={handleFeatureClick}
+            onAOIChange={handleAOIChange}
+            onSearchComplete={handleSearchUpdate}
+          />
         </main>
 
         {/* Info Panel */}
