@@ -375,7 +375,10 @@ const MapView = ({
       'modis-17A3HGF-061': ['modis-biomass'],
       'modis-11A1-061': ['modis-temperature'],
       'hgb': ['global-biomass'],
-      'esa-worldcover': ['esa-worldcover']
+      'esa-worldcover': ['esa-worldcover'],
+      // índices processados
+      'index-ndvi': ['ndvi'],
+      'index-flood': ['flood']
     };
 
     // Verificar se alguma camada correspondente à coleção está ativa
@@ -454,6 +457,15 @@ const MapView = ({
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=esa-worldcover&item=${result.id}&assets=map&format=png`;
       opacity = (activeLayers.find(l => l.id === 'esa-worldcover')?.opacity || 75) / 100;
       console.log("✅ Using ESA WorldCover:", imageUrl);
+    } else if (collection === 'index-ndvi') {
+      // Resultado de process-water-index traz tileUrl; vamos renderizar uma imagem preview do tile para recorte
+      imageUrl = `${result.tileUrl.replace('{z}/{x}/{y}', '8/156/234')}`; // tile sample
+      opacity = (activeLayers.find(l => l.id === 'ndvi')?.opacity || 70) / 100;
+      console.log("✅ Using NDVI tiles:", imageUrl);
+    } else if (collection === 'index-flood') {
+      imageUrl = `${result.tileUrl.replace('{z}/{x}/{y}', '8/156/234')}`;
+      opacity = (activeLayers.find(l => l.id === 'flood')?.opacity || 65) / 100;
+      console.log("✅ Using SAR water tiles:", imageUrl);
     } else {
       console.log("⚠️ No matching collection for active layers");
       return;
@@ -637,6 +649,43 @@ const MapView = ({
         }
       }
 
+      // Integração de índices (Planetary Computer TiTiler via process-water-index)
+      const hasNDVI = activeLayers.some(l => l.id === 'ndvi');
+      if (hasNDVI) {
+        const ndviPromise = supabase.functions.invoke('process-water-index', {
+          body: {
+            aoi: currentAOI,
+            startDate: startISO,
+            endDate: endISO,
+            collection: 'sentinel-2-l2a',
+            indexType: 'ndvi',
+            threshold: 0.2
+          }
+        }).then(response => ({
+          ...response,
+          collection: 'index-ndvi'
+        }));
+        searchPromises.push(ndviPromise);
+      }
+
+      const hasFlood = activeLayers.some(l => l.id === 'flood');
+      if (hasFlood && hasSentinel1) {
+        const floodPromise = supabase.functions.invoke('process-water-index', {
+          body: {
+            aoi: currentAOI,
+            startDate: startISO,
+            endDate: endISO,
+            collection: 'sentinel-1-grd',
+            indexType: 'sar-water',
+            threshold: -15
+          }
+        }).then(response => ({
+          ...response,
+          collection: 'index-flood'
+        }));
+        searchPromises.push(floodPromise);
+      }
+
       // Executar todas as buscas em paralelo
       const results = await Promise.all(searchPromises);
 
@@ -720,15 +769,21 @@ const MapView = ({
       }
     });
 
-    // Se nenhuma coleção específica foi encontrada, usar Sentinel-2 como padrão
-    if (collections.length === 0) {
+    // Adicionar Sentinel-2 como padrão APENAS quando nenhuma camada estiver ativa.
+    // Se apenas SAR (Sentinel-1) estiver ativo, não adicionar coleções ópticas por padrão.
+    if (collections.length === 0 && activeLayers.length === 0) {
       collections.push('sentinel-2-l2a');
     }
     return collections;
   };
   const getActiveCollection = () => {
     const collections = getActiveCollections();
-    return collections[0] || 'sentinel-2-l2a';
+    if (collections.length > 0) return collections[0];
+    // Se não há coleções mapeadas e existe alguma camada Sentinel-1 ativa, priorizar Sentinel-1
+    const hasSentinel1Active = layers.some(l => l.enabled && l.id.startsWith('sentinel1'));
+    if (hasSentinel1Active) return 'sentinel-1-grd';
+    // Fallback geral quando nenhuma camada está ativa
+    return 'sentinel-2-l2a';
   };
   return <div className="absolute inset-0">
       <div ref={mapContainer} className="w-full h-full" />
