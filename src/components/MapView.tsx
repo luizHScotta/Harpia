@@ -49,6 +49,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       center: [-48.5044, -1.4558], // Belém coordinates
       zoom: 11,
       pitch: 0,
+      antialias: true, // Melhor qualidade 3D
     });
 
     console.log("Mapbox map initialized");
@@ -220,20 +221,59 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     setIs3DMode(newMode);
     
     if (newMode) {
-      // Ativar 3D
+      // Ativar 3D com terreno
       map.current.easeTo({
-        pitch: 60,
-        bearing: 0,
-        duration: 1000
+        pitch: 70,
+        bearing: -17.6,
+        duration: 1500
       });
-      toast.success("Modo 3D ativado");
+
+      // Adicionar fonte de terreno DEM se não existir
+      if (!map.current.getSource('mapbox-dem')) {
+        map.current.addSource('mapbox-dem', {
+          'type': 'raster-dem',
+          'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+          'tileSize': 512,
+          'maxzoom': 14
+        });
+        
+        // Configurar terreno 3D
+        map.current.setTerrain({ 
+          'source': 'mapbox-dem', 
+          'exaggeration': 2.5 // Exagerar relevo para melhor visualização
+        });
+
+        // Adicionar sky layer para efeito atmosférico
+        map.current.addLayer({
+          'id': 'sky',
+          'type': 'sky',
+          'paint': {
+            'sky-type': 'atmosphere',
+            'sky-atmosphere-sun': [0.0, 90.0],
+            'sky-atmosphere-sun-intensity': 15
+          }
+        });
+      } else {
+        map.current.setTerrain({ 
+          'source': 'mapbox-dem', 
+          'exaggeration': 2.5 
+        });
+      }
+      
+      toast.success("Modo 3D ativado", {
+        description: "Terreno com elevação real"
+      });
     } else {
       // Voltar para 2D
       map.current.easeTo({
         pitch: 0,
         bearing: 0,
-        duration: 1000
+        duration: 1500
       });
+      
+      // Remover terreno 3D
+      map.current.setTerrain(null);
+      
       toast.success("Modo 2D ativado");
     }
   };
@@ -305,32 +345,20 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       imageUrl = result.assets?.visual?.href || result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'sentinel2')?.opacity || 80) / 100;
     } else if (hasLandsat && collection === 'landsat-c2-l2') {
-      // Landsat True Color
-      imageUrl = result.assets?.rendered_preview?.href;
+      // Landsat True Color - usar asset correto
+      imageUrl = result.assets?.rendered_preview?.href || 
+                 result.assets?.visual?.href ||
+                 `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=landsat-c2-l2&item=${result.id}&assets=red&assets=green&assets=blue&rescale=0,30000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'landsat')?.opacity || 80) / 100;
     } else if (hasDEM && collection === 'cop-dem-glo-30') {
-      // DEM visualization
-      imageUrl = result.assets?.data?.href || result.assets?.rendered_preview?.href;
+      // DEM visualization with hillshade
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=cop-dem-glo-30&item=${result.id}&assets=data&colormap=terrain&rescale=-100,3000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'dem')?.opacity || 70) / 100;
-      
-      // Enable terrain for DEM
-      if (is3DMode && result.assets?.data?.href) {
-        try {
-          mapInstance.addSource('dem-terrain', {
-            type: 'raster-dem',
-            url: result.assets.data.href,
-            tileSize: 512
-          });
-          mapInstance.setTerrain({ source: 'dem-terrain', exaggeration: 1.5 });
-        } catch (e) {
-          console.log("Terrain already exists or error:", e);
-        }
-      }
     } else if (hasNASADEM && collection === 'nasadem') {
-      imageUrl = result.assets?.elevation?.href || result.assets?.rendered_preview?.href;
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=nasadem&item=${result.id}&assets=elevation&colormap=terrain&rescale=0,500&format=png`;
       opacity = (activeLayers.find(l => l.id === 'nasadem')?.opacity || 70) / 100;
     } else if (hasALOSDEM && collection === 'alos-dem') {
-      imageUrl = result.assets?.data?.href || result.assets?.rendered_preview?.href;
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=alos-dem&item=${result.id}&assets=data&colormap=terrain&rescale=0,500&format=png`;
       opacity = (activeLayers.find(l => l.id === 'alosdem')?.opacity || 70) / 100;
     } else {
       // No relevant layers enabled, remove overlay
@@ -369,15 +397,20 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       });
 
       // Add raster layer with dynamic opacity
+      // Colocar acima do terreno 3D se existir
+      const layers = mapInstance.getStyle().layers;
+      const firstSymbolId = layers?.find(layer => layer.type === 'symbol')?.id;
+      
       mapInstance.addLayer({
         id: layerId,
         type: 'raster',
         source: sourceId,
         paint: {
           'raster-opacity': opacity,
-          'raster-fade-duration': 300
+          'raster-fade-duration': 300,
+          'raster-resampling': 'linear'
         }
-      });
+      }, firstSymbolId);
 
       console.log(`✅ Image overlay ${layerIndex} updated - opacity: ${opacity}`);
       
