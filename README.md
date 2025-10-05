@@ -1,73 +1,85 @@
-# Welcome to your Lovable project
+*HARP-I.A — Socio-environmental intelligence platform for low-lying urban areas*
 
-## Project info
+Developed for the NASA International Space Apps Challenge.
+(Optional) Add the logo to your repo and reference it here:
+![NASA International Space Apps Challenge]
 
-**URL**: https://lovable.dev/projects/c431110c-be80-4d06-a7ab-e789abd1fb2c
+Summary
+Low-lying urban areas (historically occupied, lower-elevation zones) concentrate hydrogeological risks, flooding, urban heat islands, and low tree cover. In cities like Belém (PA), a large share of residents live in these territories—a geography of risk increasingly stressed by climate change.
+Just as harp.ia watches over the Amazon forest, we realized satellite data can reveal hidden signals of these events. There is an abundance of data (NASA, Copernicus, etc.) and AI capable of translating sources such as SAR, MODIS, Copernicus, and IBGE into accessible insights about floods, climate, and socio-environmental risk.
+The platform supports natural-language queries, report generation, and SAR image visualization, turning complex knowledge into practical, accessible information for those who need it most.
 
-## How can I edit this code?
+Who we are — Harp.ia Team
 
-There are several ways of editing your application.
+We are Harp.ia, a multidisciplinary team focused on data, environment, and Amazonian cities. Inspired by the sharp vision of the harpy eagle, we build solutions that “see” the territory and translate complex data into usable knowledge for communities, public managers, researchers, journalists, and civil society organizations.
 
-**Use Lovable**
+Project (HARP-I.A)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/c431110c-be80-4d06-a7ab-e789abd1fb2c) and start prompting.
+HARP-I.A is an AI + Remote Sensing dashboard that integrates SAR imagery, flood maps, infrared bands, and tree-cover data to contextualize hydro-climatic risks and their social impacts.
+The platform highlights the connection between geomorphology and social vulnerability: low-lying terrain is more prone to flooding, and peripheral populations typically have fewer resources and less information to prepare for or respond to these events. Although satellite data and historical records exist, they rarely reach those most exposed.
 
-Changes made via Lovable will be committed automatically to this repo.
+The problem
 
-**Use your preferred IDE**
+Residents of low-lying areas face floods, extreme heat, and other climate risks, but geospatial/meteorological data doesn’t arrive in an accessible way. Technologies like SAR, MODIS, and Copernicus generate insights about flooding, land-surface temperature, vegetation, and topography—yet they often remain in expert silos.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+The data-to-action gap
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Even with abundant information, user-friendly tools are missing to convert that data into local action. Vulnerable communities often lack technical training and access to platforms capable of interpreting satellite imagery, climate patterns, or historical events.
 
-Follow these steps:
+Our solution
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+HARP-I.A bridges this gap with a conversational interface and interactive map. A user can select an area or share a location and ask, for example:
+“What’s the flood risk next week?”
+The system combines real-time data, event history, and climate models to deliver clear answers, plus reports on flood risk, heat-island intensity, hydrogeological hazards, and socio-environmental indicators—supporting planning and response by communities, academia, and NGOs.
+
+How it works
+
+A map-based interface connected to the Microsoft Planetary Computer.
+
+AI interprets natural-language queries and fuses multiple sources (SAR, MODIS, Copernicus, IBGE).
+
+Provides real-time insights, historical analyses, and predictive indications of environmental hazards.
+
+Enables satellite image exploration, custom searches, and fosters citizen science through gamification.
+
+Use of Artificial Intelligence (AI)
+
+Core feature: a conversational interface powered by LLMs so anyone can ask about flooding, climate change, and environmental risks, receiving plain-language explanations.
+
+Tools used
+
+ChatGPT (OpenAI GPT-4): interprets natural-language questions and translates GIS outputs into clear information.
+
+Lovable: orchestrates the dashboard backend, integrating data sources and enabling near-real-time responses.
+
+OpenAI — Text Review Tools: refine and enhance project texts and descriptions (prompts, reports, materials).
+
+Real-time API & Function Calling: allow the AI agent to fetch up-to-date data, compose queries (e.g., SQL), and return immediate, concise answers.
+
+Tech stack
+
+Vite
+
+TypeScript
+
+React
+
+shadcn-ui
+
+Tailwind CSS
+
+Getting started
+
+Prerequisites: Node.js (LTS) and npm installed.
+
+# Step 1: Clone the repository using your project URL.
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
+# Step 2: Enter the project directory.
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
+# Step 3: Install dependencies.
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Start the dev server with hot reload and instant preview.
 npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/c431110c-be80-4d06-a7ab-e789abd1fb2c) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
