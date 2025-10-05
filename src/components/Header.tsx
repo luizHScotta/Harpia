@@ -37,8 +37,8 @@ const Header = ({ onToggleSidebar, onExport, onToggleInfoPanel }: HeaderProps) =
           <Menu className="h-5 w-5" />
         </Button>
         <div className="flex items-center gap-3">
-          <img src={nasaLogo} alt="NASA Logo" className="h-14 w-14 object-contain" />
-          <img src={projectLogo} alt="Project Logo" className="h-14 w-14 object-contain" />
+          <img src={nasaLogo} alt="NASA Logo" className="h-16 w-16 object-contain" />
+          <img src={projectLogo} alt="Project Logo" className="h-16 w-16 object-contain" />
         </div>
         <div>
           <h1 className="text-xl font-bold text-foreground">
