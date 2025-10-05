@@ -288,16 +288,6 @@ export const defaultLayers: Layer[] = [
     description: "Cobertura solo 10m (carrega automaticamente)"
   },
   {
-    id: "io-lulc",
-    name: "Cobertura Humana",
-    category: "Análises",
-    icon: Globe,
-    color: "hsl(280 60% 50%)",
-    enabled: false,
-    opacity: 75,
-    description: "Impact Observatory Land Cover 10m - uso do solo (carrega ao ativar)"
-  },
-  {
     id: "ndvi",
     name: "NDVI",
     category: "Análises",
@@ -326,36 +316,6 @@ export const defaultLayers: Layer[] = [
     enabled: false,
     opacity: 70,
     description: "Detecção automática de corpos d'água (carrega ao ativar)"
-  },
-  {
-    id: "water-mask-blue",
-    name: "Máscara de Água",
-    category: "Análises",
-    icon: Droplets,
-    color: "hsl(210 100% 45%)",
-    enabled: false,
-    opacity: 80,
-    description: "Destaca água em azul intenso (carrega ao ativar)"
-  },
-  {
-    id: "vegetation-mask-green",
-    name: "Máscara de Vegetação",
-    category: "Análises",
-    icon: TreePine,
-    color: "hsl(120 70% 40%)",
-    enabled: false,
-    opacity: 80,
-    description: "Destaca vegetação em verde (carrega ao ativar)"
-  },
-  {
-    id: "sar-false-color",
-    name: "SAR False Color",
-    category: "Análises",
-    icon: Radar,
-    color: "hsl(330 75% 50%)",
-    enabled: false,
-    opacity: 80,
-    description: "Composição RGB SAR: vegetação alagada (vermelho), florestas (verde)"
   },
   {
     id: "sar-backscatter",
@@ -406,16 +366,6 @@ export const defaultLayers: Layer[] = [
     enabled: false,
     opacity: 75,
     description: "Mudanças temporais detectadas"
-  },
-  {
-    id: "dem-terrain",
-    name: "Visualizar Terreno",
-    category: "Topografia",
-    icon: Mountain,
-    color: "hsl(30 70% 50%)",
-    enabled: false,
-    opacity: 70,
-    description: "Copernicus DEM 90m - modelo digital de elevação (carrega ao ativar)"
   },
   {
     id: "risk",
