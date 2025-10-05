@@ -526,6 +526,8 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
   };
 
   const handleSearch = async (startDate: string, endDate: string) => {
+    console.log("🔍 handleSearch called - currentAOI:", currentAOI);
+    
     if (!currentAOI) {
       toast.error("Defina uma área de interesse no mapa", {
         description: "Use a ferramenta de desenho para criar um polígono",
@@ -605,10 +607,10 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
     }
   };
 
-  // Expose search function to parent
+  // Expose search function to parent - atualizar sempre que currentAOI ou isSearching mudar
   useEffect(() => {
     onSearchComplete(handleSearch, isSearching);
-  }, [isSearching]);
+  }, [currentAOI, isSearching]);
 
   const getActiveCollection = () => {
     const activeLayers = layers.filter(l => l.enabled);
