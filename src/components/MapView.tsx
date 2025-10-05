@@ -200,7 +200,18 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     // Verificar se o mapa está totalmente carregado
     if (!map.current.isStyleLoaded()) {
       console.log("⏳ Waiting for map style to load before updating overlay");
-      return;
+      const handleStyleLoad = () => {
+        if (map.current && currentImageResult && currentAOI) {
+          const activeLayers = layers.filter(l => l.enabled);
+          updateImageOverlay(currentImageResult, activeLayers);
+        }
+      };
+      map.current.once('styledata', handleStyleLoad);
+      return () => {
+        if (map.current) {
+          map.current.off('styledata', handleStyleLoad);
+        }
+      };
     }
 
     const activeLayers = layers.filter(l => l.enabled);
@@ -211,12 +222,17 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   }, [layers, mapLoaded, currentAOI, currentImageResult]);
 
   const clearAllPolygons = () => {
-    if (draw.current) {
-      draw.current.deleteAll();
-      setCurrentAOI(null);
-      setCurrentImageResult(null);
-      removeImageOverlay();
-      toast.success("Todos os polígonos removidos");
+    if (draw.current && map.current) {
+      try {
+        draw.current.deleteAll();
+        setCurrentAOI(null);
+        setCurrentImageResult(null);
+        removeImageOverlay();
+        toast.success("Todos os polígonos removidos");
+      } catch (error) {
+        console.error("Error clearing polygons:", error);
+        toast.error("Erro ao limpar polígonos");
+      }
     }
   };
 
@@ -285,29 +301,58 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   };
 
   const removeImageOverlay = () => {
-    if (!map.current) return;
+    if (!map.current || !map.current.isStyleLoaded()) return;
     
     const mapInstance = map.current;
     
-    // Remove all SAR overlays (pode ter múltiplos agora)
+    // Remove all SAR/image overlays safely
     let layerIndex = 0;
-    while (true) {
+    while (layerIndex < 20) { // Max 20 overlays
       const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
       const sourceId = `${layerId}-source`;
       
+      let layerExists = false;
+      let sourceExists = false;
+      
       try {
-        if (mapInstance.getLayer(layerId)) {
-          mapInstance.removeLayer(layerId);
-          if (mapInstance.getSource(sourceId)) {
-            mapInstance.removeSource(sourceId);
-          }
-          layerIndex++;
-        } else {
-          break;
-        }
+        // Check if layer exists
+        const layer = mapInstance.getLayer(layerId);
+        layerExists = !!layer;
       } catch (e) {
-        break;
+        layerExists = false;
       }
+      
+      try {
+        // Check if source exists
+        const source = mapInstance.getSource(sourceId);
+        sourceExists = !!source;
+      } catch (e) {
+        sourceExists = false;
+      }
+      
+      if (!layerExists && !sourceExists) {
+        break; // No more overlays to remove
+      }
+      
+      // Remove layer if it exists
+      if (layerExists) {
+        try {
+          mapInstance.removeLayer(layerId);
+        } catch (e) {
+          console.warn(`Failed to remove layer ${layerId}:`, e);
+        }
+      }
+      
+      // Remove source if it exists
+      if (sourceExists) {
+        try {
+          mapInstance.removeSource(sourceId);
+        } catch (e) {
+          console.warn(`Failed to remove source ${sourceId}:`, e);
+        }
+      }
+      
+      layerIndex++;
     }
     
     console.log("🗑️ All image overlays removed");
@@ -321,9 +366,9 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     // Verificar se o mapa está pronto
     if (!mapInstance.isStyleLoaded()) {
       console.log("⏳ Map style not loaded yet, waiting...");
-      mapInstance.once('styledata', () => {
+      setTimeout(() => {
         updateImageOverlay(result, activeLayers, layerIndex, collection);
-      });
+      }, 500);
       return;
     }
     
@@ -340,18 +385,18 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     let opacity = 0.75;
     
     // Priority: Sentinel-1 VV/VH composite, then individual polarizations
-    if (hasSentinel1VV && hasSentinel1VH) {
+    if (hasSentinel1VV && hasSentinel1VH && (!collection || collection.includes('sentinel-1'))) {
       // Use false-color composite (VV, VH)
       imageUrl = result.assets?.rendered_preview?.href;
       opacity = Math.max(
         activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100,
         activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100
       ) / 100;
-    } else if (hasSentinel1VV) {
+    } else if (hasSentinel1VV && (!collection || collection.includes('sentinel-1'))) {
       // Use VV polarization
       imageUrl = result.assets?.vv?.href || result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100) / 100;
-    } else if (hasSentinel1VH) {
+    } else if (hasSentinel1VH && (!collection || collection.includes('sentinel-1'))) {
       // Use VH polarization
       imageUrl = result.assets?.vh?.href || result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
@@ -390,20 +435,27 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     
     try {
       // Remove old overlay if exists - verificar de forma segura
+      let layerExists = false;
+      let sourceExists = false;
+      
       try {
-        if (mapInstance.getLayer && mapInstance.getLayer(layerId)) {
-          mapInstance.removeLayer(layerId);
-        }
+        layerExists = !!mapInstance.getLayer(layerId);
       } catch (e) {
-        console.log(`Layer ${layerId} doesn't exist, skipping removal`);
+        layerExists = false;
       }
       
       try {
-        if (mapInstance.getSource && mapInstance.getSource(sourceId)) {
-          mapInstance.removeSource(sourceId);
-        }
+        sourceExists = !!mapInstance.getSource(sourceId);
       } catch (e) {
-        console.log(`Source ${sourceId} doesn't exist, skipping removal`);
+        sourceExists = false;
+      }
+      
+      if (layerExists) {
+        mapInstance.removeLayer(layerId);
+      }
+      
+      if (sourceExists) {
+        mapInstance.removeSource(sourceId);
       }
 
       const [west, south, east, north] = result.bbox;
@@ -422,8 +474,14 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
 
       // Add raster layer with dynamic opacity
       // Colocar acima do terreno 3D se existir
-      const layers = mapInstance.getStyle().layers;
-      const firstSymbolId = layers?.find(layer => layer.type === 'symbol')?.id;
+      let beforeLayerId;
+      try {
+        const layers = mapInstance.getStyle()?.layers || [];
+        const firstSymbolLayer = layers.find(layer => layer.type === 'symbol');
+        beforeLayerId = firstSymbolLayer?.id;
+      } catch (e) {
+        beforeLayerId = undefined;
+      }
       
       mapInstance.addLayer({
         id: layerId,
@@ -434,7 +492,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           'raster-fade-duration': 300,
           'raster-resampling': 'linear'
         }
-      }, firstSymbolId);
+      }, beforeLayerId);
 
       console.log(`✅ Image overlay ${layerIndex} updated - opacity: ${opacity}`);
       
