@@ -241,6 +241,16 @@ export const defaultLayers: Layer[] = [
     enabled: false,
     opacity: 50,
     description: "Setores censitários IBGE"
+  },
+  {
+    id: "vulnerable-communities",
+    name: "Comunidades Vulnerabilizadas",
+    category: "Socioambiental",
+    icon: Users,
+    color: "hsl(280 65% 60%)",
+    enabled: false,
+    opacity: 65,
+    description: "Municípios IBGE - GeoJSON"
   }
 ];
 
