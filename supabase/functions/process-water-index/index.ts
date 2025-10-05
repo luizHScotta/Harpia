@@ -11,7 +11,7 @@ interface IndexRequest {
   startDate: string;
   endDate: string;
   collection: string;
-  indexType: 'ndwi' | 'ndvi' | 'ndmi' | 'sar-water' | 'false-color';
+  indexType: 'ndwi' | 'ndvi' | 'ndmi' | 'sar-water' | 'false-color' | 'water-mask' | 'vegetation-mask' | 'sar-false-color';
   threshold?: number;
 }
 
@@ -61,16 +61,28 @@ serve(async (req) => {
       let colormap = '';
       let rescale = '';
       
-      if (indexType === 'ndwi') {
+      if (indexType === 'ndwi' || indexType === 'water-mask') {
         // NDWI = (Green - NIR) / (Green + NIR)
         expression = '(b03-b08)/(b03+b08)';
-        colormap = 'blues';
-        rescale = '-1,1';
-      } else if (indexType === 'ndvi') {
+        if (indexType === 'water-mask') {
+          // Enhanced blue water mask
+          colormap = 'blues';
+          rescale = '0.2,1'; // Only show high NDWI values (water)
+        } else {
+          colormap = 'blues';
+          rescale = '-1,1';
+        }
+      } else if (indexType === 'ndvi' || indexType === 'vegetation-mask') {
         // NDVI = (NIR - Red) / (NIR + Red)
         expression = '(b08-b04)/(b08+b04)';
-        colormap = 'rdylgn';
-        rescale = '-1,1';
+        if (indexType === 'vegetation-mask') {
+          // Enhanced green vegetation mask
+          colormap = 'greens';
+          rescale = '0.3,1'; // Only show high NDVI values (vegetation)
+        } else {
+          colormap = 'rdylgn';
+          rescale = '-1,1';
+        }
       } else if (indexType === 'ndmi') {
         // NDMI = (NIR - SWIR) / (NIR + SWIR)
         expression = '(b08-b11)/(b08+b11)';
@@ -85,6 +97,11 @@ serve(async (req) => {
         expression = '10*log10(vv)';
         colormap = 'viridis';
         rescale = '-25,-5';
+      } else if (indexType === 'sar-false-color') {
+        // SAR False Color: VV, VH, VV+VH
+        // Red: flooded vegetation & urban, Green: forests & mangroves
+        expression = 'vv,vh,vv+vh';
+        rescale = '-25,-5,-25,-5,-25,-5';
       }
 
       // Generate Titiler URL for rendering

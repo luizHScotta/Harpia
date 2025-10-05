@@ -347,6 +347,10 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     const hasNDVI = activeLayers.some(l => l.id === 'ndvi-vegetation');
     const hasNDMI = activeLayers.some(l => l.id === 'ndmi-moisture');
     const hasFalseColor = activeLayers.some(l => l.id === 'false-color-ir');
+    const hasWaterMask = activeLayers.some(l => l.id === 'water-mask-blue');
+    const hasVegetationMask = activeLayers.some(l => l.id === 'vegetation-mask-green');
+    const hasSARFalseColor = activeLayers.some(l => l.id === 'sar-false-color');
+    const hasDEMTerrain = activeLayers.some(l => l.id === 'dem-terrain');
     
     let imageUrl = null;
     let opacity = 0.75;
@@ -386,6 +390,18 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         opacity = (activeLayers.find(l => l.id === 'false-color-ir')?.opacity || 80) / 100;
         targetLayerId = 'false-color-ir';
         console.log("✅ Using False Color IR tile layer");
+      } else if (hasWaterMask && result.indexType === 'water-mask') {
+        opacity = (activeLayers.find(l => l.id === 'water-mask-blue')?.opacity || 80) / 100;
+        targetLayerId = 'water-mask-blue';
+        console.log("✅ Using Water Mask tile layer");
+      } else if (hasVegetationMask && result.indexType === 'vegetation-mask') {
+        opacity = (activeLayers.find(l => l.id === 'vegetation-mask-green')?.opacity || 80) / 100;
+        targetLayerId = 'vegetation-mask-green';
+        console.log("✅ Using Vegetation Mask tile layer");
+      } else if (hasSARFalseColor && result.indexType === 'sar-false-color') {
+        opacity = (activeLayers.find(l => l.id === 'sar-false-color')?.opacity || 80) / 100;
+        targetLayerId = 'sar-false-color';
+        console.log("✅ Using SAR False Color tile layer");
       }
 
       try {
@@ -650,7 +666,10 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     // Map layer IDs to their respective collections and index types
     const analysisLayerMap: Record<string, { collection: string; indexType?: string }> = {
       'ndwi-water': { collection: 'sentinel-2-l2a', indexType: 'ndwi' },
+      'water-mask-blue': { collection: 'sentinel-2-l2a', indexType: 'water-mask' },
+      'vegetation-mask-green': { collection: 'sentinel-2-l2a', indexType: 'vegetation-mask' },
       'sar-backscatter': { collection: 'sentinel-1-grd', indexType: 'sar-water' },
+      'sar-false-color': { collection: 'sentinel-1-rtc', indexType: 'sar-false-color' },
       'ndvi-vegetation': { collection: 'sentinel-2-l2a', indexType: 'ndvi' },
       'ndmi-moisture': { collection: 'sentinel-2-l2a', indexType: 'ndmi' },
       'false-color-ir': { collection: 'sentinel-2-l2a', indexType: 'false-color' },
@@ -660,6 +679,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       'modis-temperature': { collection: 'modis-11A1-061' },
       'global-biomass': { collection: 'hgb' },
       'esa-worldcover': { collection: 'esa-worldcover' },
+      'dem-terrain': { collection: 'cop-dem-glo-90' }
     };
 
     // Find newly enabled analysis layer

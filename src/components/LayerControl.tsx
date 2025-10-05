@@ -318,6 +318,36 @@ export const defaultLayers: Layer[] = [
     description: "Detecção automática de corpos d'água (carrega ao ativar)"
   },
   {
+    id: "water-mask-blue",
+    name: "Máscara de Água",
+    category: "Análises",
+    icon: Droplets,
+    color: "hsl(210 100% 45%)",
+    enabled: false,
+    opacity: 80,
+    description: "Destaca água em azul intenso (carrega ao ativar)"
+  },
+  {
+    id: "vegetation-mask-green",
+    name: "Máscara de Vegetação",
+    category: "Análises",
+    icon: TreePine,
+    color: "hsl(120 70% 40%)",
+    enabled: false,
+    opacity: 80,
+    description: "Destaca vegetação em verde (carrega ao ativar)"
+  },
+  {
+    id: "sar-false-color",
+    name: "SAR False Color",
+    category: "Análises",
+    icon: Radar,
+    color: "hsl(330 75% 50%)",
+    enabled: false,
+    opacity: 80,
+    description: "Composição RGB SAR: vegetação alagada (vermelho), florestas (verde)"
+  },
+  {
     id: "sar-backscatter",
     name: "SAR Backscatter",
     category: "Análises",
@@ -366,6 +396,16 @@ export const defaultLayers: Layer[] = [
     enabled: false,
     opacity: 75,
     description: "Mudanças temporais detectadas"
+  },
+  {
+    id: "dem-terrain",
+    name: "Relevo (DEM 90m)",
+    category: "Topografia",
+    icon: Mountain,
+    color: "hsl(30 70% 50%)",
+    enabled: false,
+    opacity: 70,
+    description: "Copernicus DEM combinado com dados SAR (carrega ao ativar)"
   },
   {
     id: "risk",
