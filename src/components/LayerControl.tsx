@@ -308,14 +308,64 @@ export const defaultLayers: Layer[] = [
     description: "Temperatura superfície terrestre"
   },
   {
-    id: "flood",
-    name: "Máscara de Inundação",
+    id: "ndwi-water",
+    name: "NDWI - Água",
     category: "Análises",
     icon: Droplets,
     color: "hsl(210 85% 50%)",
     enabled: false,
-    opacity: 65,
-    description: "Áreas inundadas detectadas"
+    opacity: 70,
+    description: "Índice de água normalizado"
+  },
+  {
+    id: "sar-backscatter",
+    name: "SAR Backscatter",
+    category: "Análises",
+    icon: Radar,
+    color: "hsl(200 80% 45%)",
+    enabled: false,
+    opacity: 70,
+    description: "Retorno do sinal radar"
+  },
+  {
+    id: "ndvi-vegetation",
+    name: "NDVI - Vegetação",
+    category: "Análises",
+    icon: Leaf,
+    color: "hsl(95 70% 45%)",
+    enabled: false,
+    opacity: 70,
+    description: "Índice de vegetação"
+  },
+  {
+    id: "ndmi-moisture",
+    name: "NDMI - Umidade",
+    category: "Análises",
+    icon: Droplets,
+    color: "hsl(180 65% 45%)",
+    enabled: false,
+    opacity: 70,
+    description: "Índice de umidade da vegetação"
+  },
+  {
+    id: "false-color-ir",
+    name: "Falsa Cor IR",
+    category: "Análises",
+    icon: Satellite,
+    color: "hsl(340 75% 55%)",
+    enabled: false,
+    opacity: 80,
+    description: "Visualização infravermelho"
+  },
+  {
+    id: "change-detection",
+    name: "Detecção de Mudanças",
+    category: "Análises",
+    icon: AlertTriangle,
+    color: "hsl(20 85% 55%)",
+    enabled: false,
+    opacity: 75,
+    description: "Mudanças temporais detectadas"
   },
   {
     id: "risk",

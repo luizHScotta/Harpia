@@ -6,6 +6,7 @@ import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { Layer } from "./LayerControl";
 import Sentinel1Search from "./Sentinel1Search";
 import PlanetarySearch from "./PlanetarySearch";
+import WaterAnalysis from "./WaterAnalysis";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Box, Cuboid } from "lucide-react";
@@ -618,6 +619,9 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           onResultSelect={handleResultSelect} 
         />
       )}
+
+      {/* Water Analysis Component */}
+      <WaterAnalysis aoi={currentAOI} onResultSelect={handleResultSelect} />
       
       {/* Botões de controle */}
       <div className="absolute top-20 left-4 z-10 space-y-2">

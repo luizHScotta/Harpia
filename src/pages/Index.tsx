@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import LayerControl, { defaultLayers, Layer } from "@/components/LayerControl";
 import MapView from "@/components/MapView";
 import InfoPanel from "@/components/InfoPanel";
+import TemporalDashboard from "@/components/TemporalDashboard";
 
 const Index = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -63,6 +64,7 @@ const Index = () => {
         {/* Map Container */}
         <main className="flex-1 relative">
           <MapView layers={layers} onFeatureClick={handleFeatureClick} />
+          <TemporalDashboard />
         </main>
 
         {/* Info Panel */}

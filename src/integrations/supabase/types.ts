@@ -14,7 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      land_cover_history: {
+        Row: {
+          created_at: string | null
+          id: string
+          land_cover_type: string
+          percentage: number
+          region: string | null
+          year: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          land_cover_type: string
+          percentage: number
+          region?: string | null
+          year: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          land_cover_type?: string
+          percentage?: number
+          region?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
