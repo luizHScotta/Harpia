@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Box, Cuboid } from "lucide-react";
 
-// Mapbox token configured
+// Mapbox token - use your own from https://mapbox.com
 const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
 
 interface MapViewProps {
@@ -41,18 +41,27 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
+    if (!MAPBOX_TOKEN || MAPBOX_TOKEN.includes('YOUR_MAPBOX_TOKEN')) {
+      console.error("❌ Mapbox token não configurado");
+      toast.error("Token Mapbox não configurado", {
+        description: "Acesse https://mapbox.com para obter seu token",
+      });
+      return;
+    }
+
     mapboxgl.accessToken = MAPBOX_TOKEN;
 
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [-48.5044, -1.4558], // Belém coordinates
-      zoom: 11,
-      pitch: 0,
-      antialias: true, // Melhor qualidade 3D
-    });
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [-48.5044, -1.4558], // Belém coordinates
+        zoom: 11,
+        pitch: 0,
+        antialias: true, // Melhor qualidade 3D
+      });
 
-    console.log("Mapbox map initialized");
+      console.log("✅ Mapbox map initialized");
 
     // Add navigation controls
     map.current.addControl(
@@ -112,8 +121,11 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
 
     map.current.on("load", () => {
-      console.log("Mapbox map loaded successfully");
+      console.log("✅ Mapbox map loaded successfully");
       setMapLoaded(true);
+      toast.success("Mapa carregado", {
+        description: "Sistema pronto para uso",
+      });
       
       // Add example polygon for Belém baixadas
       if (map.current) {
@@ -188,9 +200,22 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       }
     });
 
+    map.current.on("error", (e) => {
+      console.error("❌ Mapbox error:", e);
+      toast.error("Erro ao carregar o mapa", {
+        description: "Verifique o token do Mapbox ou tente novamente",
+      });
+    });
+
     return () => {
       map.current?.remove();
     };
+  } catch (error) {
+    console.error("❌ Error initializing Mapbox:", error);
+    toast.error("Erro ao inicializar o mapa", {
+      description: "Token inválido ou expirado. Acesse https://mapbox.com",
+    });
+  }
   }, []);
 
   // Update layer visibility and opacity based on selected layers
