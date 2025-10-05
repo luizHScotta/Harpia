@@ -521,7 +521,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
   };
 
-  // Determine which search component to show based on active layers
+  // Determine suggested search type based on active layers (user can override)
   useEffect(() => {
     const activeLayers = layers.filter(l => l.enabled);
     const hasSentinel1 = activeLayers.some(l => l.id.startsWith('sentinel1'));
@@ -531,9 +531,10 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
        'modis-temperature', 'global-biomass', 'esa-worldcover'].includes(l.id)
     );
     
-    if (hasOther && !hasSentinel1) {
+    // Auto-suggest but don't force change
+    if (hasOther && !hasSentinel1 && activeSearchType === 'sentinel1') {
       setActiveSearchType('planetary');
-    } else if (hasSentinel1) {
+    } else if (hasSentinel1 && !hasOther && activeSearchType === 'planetary') {
       setActiveSearchType('sentinel1');
     }
   }, [layers]);
@@ -545,12 +546,68 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     if (activeLayers.some(l => l.id === 'dem')) return 'cop-dem-glo-30';
     if (activeLayers.some(l => l.id === 'nasadem')) return 'nasadem';
     if (activeLayers.some(l => l.id === 'alosdem')) return 'alos-dem';
+    if (activeLayers.some(l => l.id === 'modis-reflectance')) return 'modis-09Q1-061';
+    if (activeLayers.some(l => l.id === 'modis-vegetation')) return 'modis-13A1-061';
+    if (activeLayers.some(l => l.id === 'modis-biomass')) return 'modis-17A3HGF-061';
+    if (activeLayers.some(l => l.id === 'modis-temperature')) return 'modis-11A1-061';
+    if (activeLayers.some(l => l.id === 'global-biomass')) return 'hgb';
+    if (activeLayers.some(l => l.id === 'esa-worldcover')) return 'esa-worldcover';
     return 'sentinel-2-l2a';
   };
 
   return (
     <div className="absolute inset-0">
       <div ref={mapContainer} className="w-full h-full" />
+      
+      {/* Seletor de tipo de busca */}
+      <div className="absolute top-4 left-4 z-10 flex gap-2">
+        <Button
+          onClick={() => setActiveSearchType('sentinel1')}
+          variant={activeSearchType === 'sentinel1' ? 'default' : 'outline'}
+          size="sm"
+          className="shadow-elevated"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mr-2"
+          >
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+          </svg>
+          Sentinel-1
+        </Button>
+        <Button
+          onClick={() => setActiveSearchType('planetary')}
+          variant={activeSearchType === 'planetary' ? 'default' : 'outline'}
+          size="sm"
+          className="shadow-elevated"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mr-2"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+            <path d="M2 12h20" />
+          </svg>
+          Outros Satélites
+        </Button>
+      </div>
       
       {activeSearchType === 'sentinel1' ? (
         <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
