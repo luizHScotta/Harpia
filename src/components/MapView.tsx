@@ -209,174 +209,199 @@ const MapView = ({
   };
   const toggle3DMode = () => {
     if (!map.current || !mapLoaded) {
-      toast.error("Aguarde o mapa carregar completamente");
+      console.log("Map not ready for 3D toggle");
       return;
     }
-    
-    const newMode = !is3DMode;
-    setIs3DMode(newMode);
-    
-    if (newMode) {
-      // Ativar 3D com terreno
-      map.current.easeTo({
-        pitch: 70,
-        bearing: -17.6,
-        duration: 1500
-      });
 
-      // Adicionar fonte de terreno DEM se não existir
-      try {
-        const hasSource = map.current.getSource('mapbox-dem');
-        if (!hasSource) {
+    try {
+      const new3DState = !is3DMode;
+      setIs3DMode(new3DState);
+
+      if (new3DState) {
+        console.log("Activating 3D mode...");
+        
+        // Add terrain source
+        if (!map.current.getSource('mapbox-dem')) {
           map.current.addSource('mapbox-dem', {
-            'type': 'raster-dem',
-            'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
-            'tileSize': 512,
-            'maxzoom': 14
-          });
-
-          // Configurar terreno 3D com exageração
-          map.current.setTerrain({
-            'source': 'mapbox-dem',
-            'exaggeration': 2.5
-          });
-
-          // Adicionar camada de elevação colorida
-          const hasHillshade = map.current.getLayer('hillshade');
-          if (!hasHillshade) {
-            map.current.addLayer({
-              'id': 'hillshade',
-              'type': 'hillshade',
-              'source': 'mapbox-dem',
-              'paint': {
-                'hillshade-exaggeration': 0.8,
-                'hillshade-shadow-color': '#000000',
-                'hillshade-highlight-color': '#ffffff'
-              }
-            });
-          }
-
-          // Adicionar modelos 3D de edifícios
-          const layers = map.current.getStyle().layers;
-          const labelLayerId = layers?.find(
-            (layer) => layer.type === 'symbol' && layer.layout && layer.layout['text-field']
-          )?.id;
-
-          const has3DBuildings = map.current.getLayer('3d-buildings');
-          if (!has3DBuildings) {
-            map.current.addLayer({
-              'id': '3d-buildings',
-              'source': 'composite',
-              'source-layer': 'building',
-              'filter': ['==', 'extrude', 'true'],
-              'type': 'fill-extrusion',
-              'minzoom': 15,
-              'paint': {
-                'fill-extrusion-color': [
-                  'interpolate',
-                  ['linear'],
-                  ['get', 'height'],
-                  0, 'hsl(0, 70%, 50%)',
-                  15, 'hsl(45, 85%, 55%)',
-                  30, 'hsl(210, 75%, 55%)'
-                ],
-                'fill-extrusion-height': [
-                  'interpolate',
-                  ['linear'],
-                  ['zoom'],
-                  15, 0,
-                  15.05, ['get', 'height']
-                ],
-                'fill-extrusion-base': [
-                  'interpolate',
-                  ['linear'],
-                  ['zoom'],
-                  15, 0,
-                  15.05, ['get', 'min_height']
-                ],
-                'fill-extrusion-opacity': 0.6
-              }
-            }, labelLayerId);
-          }
-
-          // Adicionar camada NASA GIBS
-          const hasGIBS = map.current.getSource('nasa-gibs-modis');
-          if (!hasGIBS) {
-            const today = new Date();
-            const dateStr = today.toISOString().split('T')[0];
-            
-            map.current.addSource('nasa-gibs-modis', {
-              'type': 'raster',
-              'tiles': [
-                `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${dateStr}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`
-              ],
-              'tileSize': 256,
-              'attribution': 'NASA GIBS'
-            });
-
-            map.current.addLayer({
-              'id': 'nasa-gibs-layer',
-              'type': 'raster',
-              'source': 'nasa-gibs-modis',
-              'paint': {
-                'raster-opacity': 0
-              }
-            });
-          }
-
-          // Adicionar sky layer
-          const hasSky = map.current.getLayer('sky');
-          if (!hasSky) {
-            map.current.addLayer({
-              'id': 'sky',
-              'type': 'sky',
-              'paint': {
-                'sky-type': 'atmosphere',
-                'sky-atmosphere-sun': [0.0, 90.0],
-                'sky-atmosphere-sun-intensity': 15
-              }
-            });
-          }
-        } else {
-          map.current.setTerrain({
-            'source': 'mapbox-dem',
-            'exaggeration': 2.5
+            type: 'raster-dem',
+            url: 'mapbox://mapbox.terrain-rgb',
+            tileSize: 512,
+            maxzoom: 14
           });
         }
-        
-        toast.success("Modo 3D ativado", {
-          description: "Terreno com elevação colorida e modelos 3D"
+
+        // Set terrain
+        map.current.setTerrain({ 
+          source: 'mapbox-dem', 
+          exaggeration: 2.5 
         });
-      } catch (error) {
-        console.error('Erro ao ativar 3D:', error);
-        toast.error("Erro ao ativar modo 3D");
-      }
-    } else {
-      // Voltar para 2D
-      try {
+
+        // Add hillshade layer
+        if (!map.current.getLayer('hillshade')) {
+          map.current.addLayer({
+            id: 'hillshade',
+            type: 'hillshade',
+            source: 'mapbox-dem',
+            paint: {
+              'hillshade-exaggeration': 0.3,
+              'hillshade-shadow-color': '#1a1a1a'
+            }
+          });
+        }
+
+        // Add 3D buildings with elevation-based coloring
+        if (!map.current.getLayer('3d-buildings')) {
+          map.current.addLayer({
+            id: '3d-buildings',
+            source: 'composite',
+            'source-layer': 'building',
+            filter: ['==', 'extrude', 'true'],
+            type: 'fill-extrusion',
+            minzoom: 12,
+            paint: {
+              'fill-extrusion-color': [
+                'interpolate',
+                ['linear'],
+                ['get', 'height'],
+                0, '#e74c3c',    // Red for low buildings
+                50, '#f39c12',   // Yellow for medium
+                100, '#3498db'   // Blue for tall buildings
+              ],
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                12, 0,
+                12.05, ['get', 'height']
+              ],
+              'fill-extrusion-base': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                12, 0,
+                12.05, ['get', 'min_height']
+              ],
+              'fill-extrusion-opacity': 0.7
+            }
+          });
+        }
+
+        // Add NASA Worldview (MODIS) layer - using correct date format
+        const today = new Date().toISOString().split('T')[0];
+        if (!map.current.getSource('nasa-worldview')) {
+          map.current.addSource('nasa-worldview', {
+            type: 'raster',
+            tiles: [
+              `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${today}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`
+            ],
+            tileSize: 256
+          });
+        }
+
+        if (!map.current.getLayer('nasa-worldview-layer')) {
+          map.current.addLayer({
+            id: 'nasa-worldview-layer',
+            type: 'raster',
+            source: 'nasa-worldview',
+            paint: {
+              'raster-opacity': 0.5
+            }
+          }, 'hillshade');
+        }
+
+        // Add USGS Imagery layer
+        if (!map.current.getSource('usgs-imagery')) {
+          map.current.addSource('usgs-imagery', {
+            type: 'raster',
+            tiles: [
+              'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}'
+            ],
+            tileSize: 256
+          });
+        }
+
+        if (!map.current.getLayer('usgs-imagery-layer')) {
+          map.current.addLayer({
+            id: 'usgs-imagery-layer',
+            type: 'raster',
+            source: 'usgs-imagery',
+            paint: {
+              'raster-opacity': 0.3
+            }
+          }, 'hillshade');
+        }
+
+        // Add sky layer
+        if (!map.current.getLayer('sky')) {
+          map.current.addLayer({
+            id: 'sky',
+            type: 'sky',
+            paint: {
+              'sky-type': 'atmosphere',
+              'sky-atmosphere-sun': [0.0, 90.0],
+              'sky-atmosphere-sun-intensity': 15
+            }
+          });
+        }
+
+        // Animate camera
+        map.current.easeTo({
+          pitch: 70,
+          bearing: -30,
+          duration: 2000
+        });
+
+        toast.success("Modo 3D ativado");
+      } else {
+        console.log("Deactivating 3D mode...");
+        
+        // Remove terrain first
+        if (map.current.getTerrain()) {
+          map.current.setTerrain(null);
+        }
+
+        // Remove 3D layers in reverse order
+        const layersToRemove = ['sky', '3d-buildings', 'usgs-imagery-layer', 'nasa-worldview-layer', 'hillshade'];
+        layersToRemove.forEach(layerId => {
+          if (map.current?.getLayer(layerId)) {
+            try {
+              map.current.removeLayer(layerId);
+              console.log(`Removed layer: ${layerId}`);
+            } catch (e) {
+              console.warn(`Could not remove layer ${layerId}:`, e);
+            }
+          }
+        });
+
+        // Wait a bit before removing sources
+        setTimeout(() => {
+          if (!map.current) return;
+          
+          const sourcesToRemove = ['usgs-imagery', 'nasa-worldview', 'mapbox-dem'];
+          sourcesToRemove.forEach(sourceId => {
+            if (map.current?.getSource(sourceId)) {
+              try {
+                map.current.removeSource(sourceId);
+                console.log(`Removed source: ${sourceId}`);
+              } catch (e) {
+                console.warn(`Could not remove source ${sourceId}:`, e);
+              }
+            }
+          });
+        }, 100);
+
+        // Reset camera
         map.current.easeTo({
           pitch: 0,
           bearing: 0,
-          duration: 1500
+          duration: 1000
         });
 
-        map.current.setTerrain(null);
-        
-        if (map.current.getLayer('hillshade')) {
-          map.current.removeLayer('hillshade');
-        }
-        if (map.current.getLayer('3d-buildings')) {
-          map.current.removeLayer('3d-buildings');
-        }
-        if (map.current.getLayer('sky')) {
-          map.current.removeLayer('sky');
-        }
-        
         toast.success("Modo 2D ativado");
-      } catch (error) {
-        console.error('Erro ao desativar 3D:', error);
-        toast.error("Erro ao desativar modo 3D");
       }
+    } catch (error) {
+      console.error("Error toggling 3D mode:", error);
+      toast.error("Erro ao alternar modo 3D");
     }
   };
   const removeImageOverlay = () => {

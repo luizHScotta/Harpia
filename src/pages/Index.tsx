@@ -6,9 +6,11 @@ import MapView from "@/components/MapView";
 import InfoPanel from "@/components/InfoPanel";
 import RiskAnalysisPanel from "@/components/RiskAnalysisPanel";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useTouchDevice } from "@/hooks/use-touch-device";
 
 const Index = () => {
   const { t, language } = useLanguage();
+  const isTouchDevice = useTouchDevice();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [layers, setLayers] = useState<Layer[]>(defaultLayers);
   const [selectedFeature, setSelectedFeature] = useState<any>(null);
@@ -96,43 +98,79 @@ const Index = () => {
       />
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar with Layer Controls */}
-        {sidebarOpen && (
-          <aside className="w-80 bg-card border-r border-border overflow-y-auto p-4 space-y-4">
-            <LayerControl
-              layers={layers}
-              onLayerToggle={handleLayerToggle}
-              onOpacityChange={handleOpacityChange}
-              onClearAll={handleClearAll}
-              aoi={currentAOI}
-              onSearch={handleSearch}
-              isSearching={isSearching}
-            />
-            <RiskAnalysisPanel
-              aoi={currentAOI}
-              layers={layers}
+        {isTouchDevice ? (
+          /* Touch device layout - collapsible sidebar */
+          <>
+            {sidebarOpen && (
+              <aside className="absolute left-0 top-0 z-10 h-full w-80 overflow-y-auto border-r border-border bg-card/95 backdrop-blur-sm p-4 shadow-lg transition-transform duration-300 md:relative md:bg-card space-y-4">
+                <LayerControl
+                  layers={layers}
+                  onLayerToggle={handleLayerToggle}
+                  onOpacityChange={handleOpacityChange}
+                  onClearAll={handleClearAll}
+                  aoi={currentAOI}
+                  onSearch={handleSearch}
+                  isSearching={isSearching}
+                />
+                <RiskAnalysisPanel
+                  aoi={currentAOI}
+                  layers={layers}
+                  searchResults={searchResults}
+                />
+              </aside>
+            )}
+            <main className="flex-1 relative">
+              <MapView 
+                layers={layers} 
+                onFeatureClick={handleFeatureClick}
+                onAOIChange={handleAOIChange}
+                onSearchComplete={handleSearchUpdate}
+              />
+            </main>
+            <InfoPanel 
+              data={selectedFeature} 
+              isOpen={infoPanelOpen}
               searchResults={searchResults}
+              onImageSelect={onImageSelect}
             />
-          </aside>
+          </>
+        ) : (
+          /* Desktop layout */
+          <>
+            {sidebarOpen && (
+              <aside className="w-80 bg-card border-r border-border overflow-y-auto p-4 space-y-4">
+                <LayerControl
+                  layers={layers}
+                  onLayerToggle={handleLayerToggle}
+                  onOpacityChange={handleOpacityChange}
+                  onClearAll={handleClearAll}
+                  aoi={currentAOI}
+                  onSearch={handleSearch}
+                  isSearching={isSearching}
+                />
+                <RiskAnalysisPanel
+                  aoi={currentAOI}
+                  layers={layers}
+                  searchResults={searchResults}
+                />
+              </aside>
+            )}
+            <main className="flex-1 relative">
+              <MapView 
+                layers={layers} 
+                onFeatureClick={handleFeatureClick}
+                onAOIChange={handleAOIChange}
+                onSearchComplete={handleSearchUpdate}
+              />
+            </main>
+            <InfoPanel 
+              data={selectedFeature} 
+              isOpen={infoPanelOpen}
+              searchResults={searchResults}
+              onImageSelect={onImageSelect}
+            />
+          </>
         )}
-
-        {/* Map Container */}
-        <main className="flex-1 relative">
-          <MapView 
-            layers={layers} 
-            onFeatureClick={handleFeatureClick}
-            onAOIChange={handleAOIChange}
-            onSearchComplete={handleSearchUpdate}
-          />
-        </main>
-
-        {/* Info Panel */}
-        <InfoPanel 
-          data={selectedFeature} 
-          isOpen={infoPanelOpen}
-          searchResults={searchResults}
-          onImageSelect={onImageSelect}
-        />
       </div>
     </div>
   );
