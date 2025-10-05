@@ -42,7 +42,7 @@ const Header = ({ onToggleSidebar, onExport, onToggleInfoPanel }: HeaderProps) =
         </div>
         <div>
           <h1 className="text-xl font-bold text-foreground">
-            {t("header.title")}
+            Harp.IA
           </h1>
           <p className="text-xs text-muted-foreground">
             {t("header.subtitle")}
