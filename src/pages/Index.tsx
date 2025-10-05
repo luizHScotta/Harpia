@@ -13,6 +13,8 @@ const Index = () => {
   const [currentAOI, setCurrentAOI] = useState<any>(null);
   const [handleSearch, setHandleSearch] = useState<(start: string, end: string) => Promise<void>>(() => async () => {});
   const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [onImageSelect, setOnImageSelect] = useState<((result: any, collection: string) => void) | undefined>();
 
   const handleLayerToggle = (id: string) => {
     setLayers(prev =>
@@ -42,9 +44,21 @@ const Index = () => {
     setCurrentAOI(aoi);
   };
 
-  const handleSearchUpdate = (searchFn: (start: string, end: string) => Promise<void>, searching: boolean) => {
+  const handleSearchUpdate = (
+    searchFn: (start: string, end: string) => Promise<void>, 
+    searching: boolean,
+    results?: any[],
+    imageSelectFn?: (result: any, collection: string) => void
+  ) => {
     setHandleSearch(() => searchFn);
     setIsSearching(searching);
+    if (results) {
+      setSearchResults(results);
+      setInfoPanelOpen(true);
+    }
+    if (imageSelectFn) {
+      setOnImageSelect(() => imageSelectFn);
+    }
   };
 
   const handleExport = () => {
@@ -86,7 +100,12 @@ const Index = () => {
         </main>
 
         {/* Info Panel */}
-        <InfoPanel data={selectedFeature} isOpen={infoPanelOpen} />
+        <InfoPanel 
+          data={selectedFeature} 
+          isOpen={infoPanelOpen}
+          searchResults={searchResults}
+          onImageSelect={onImageSelect}
+        />
       </div>
     </div>
   );

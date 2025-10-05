@@ -3,46 +3,54 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   MapPin, 
-  Users, 
-  Droplets, 
-  Leaf, 
-  Thermometer,
-  AlertTriangle,
+  Satellite,
+  Calendar,
   Minimize2,
-  Maximize2
+  Maximize2,
+  Eye
 } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface InfoPanelProps {
-  data: any;
+  data?: any;
   isOpen: boolean;
+  searchResults?: any[];
+  onImageSelect?: (result: any, collection: string) => void;
 }
 
-const InfoPanel = ({ data, isOpen }: InfoPanelProps) => {
+const InfoPanel = ({ data, isOpen, searchResults = [], onImageSelect }: InfoPanelProps) => {
   const [isMinimized, setIsMinimized] = useState(false);
 
-  if (!isOpen || !data) return null;
+  if (!isOpen) return null;
 
-  const getRiskColor = (risk: string | undefined) => {
-    if (!risk) return "bg-muted";
-    
-    switch (risk.toLowerCase()) {
-      case "alto":
-        return "bg-risk-high";
-      case "médio":
-        return "bg-risk-medium";
-      case "baixo":
-        return "bg-risk-low";
-      default:
-        return "bg-muted";
-    }
+  const getCollectionName = (collection: string) => {
+    const names: Record<string, string> = {
+      'sentinel-1-grd': 'Sentinel-1 SAR',
+      'sentinel-2-l2a': 'Sentinel-2 Óptico',
+      'landsat-c2-l2': 'Landsat',
+      'cop-dem-glo-30': 'Copernicus DEM',
+      'nasadem': 'NASA DEM',
+      'alos-dem': 'ALOS DEM',
+      'modis-09Q1-061': 'MODIS Reflectância',
+      'modis-13A1-061': 'MODIS Vegetação',
+      'modis-17A3HGF-061': 'MODIS Biomassa',
+      'modis-11A1-061': 'MODIS Temperatura',
+      'hgb': 'Biomassa Global',
+      'esa-worldcover': 'ESA WorldCover'
+    };
+    return names[collection] || collection;
   };
 
   return (
-    <div className="w-96 bg-card border-l border-border h-full overflow-y-auto">
-      <div className="p-4 border-b border-border flex items-center justify-between sticky top-0 bg-card z-10">
-        <h3 className="font-semibold text-foreground">Informações da Área</h3>
+    <div className="w-96 bg-card border-l border-border h-full flex flex-col">
+      <div className="p-4 border-b border-border flex items-center justify-between bg-card">
+        <h3 className="font-semibold text-foreground">
+          {searchResults.length > 0 ? 'Imagens Encontradas' : 'Informações'}
+        </h3>
         <Button
           variant="ghost"
           size="icon"
@@ -54,104 +62,84 @@ const InfoPanel = ({ data, isOpen }: InfoPanelProps) => {
       </div>
       
       {!isMinimized && (
-        <div className="p-6 space-y-6">
-          {/* Header */}
-          <div>
-          <div className="flex items-start gap-3 mb-3">
-            <MapPin className="h-5 w-5 text-primary mt-1" />
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-foreground">
-                {data.name || "Área Selecionada"}
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Dados da última semana
-              </p>
-            </div>
-          </div>
-          <Badge className={`${getRiskColor(data.floodRisk)} text-white`}>
-            Risco de Inundação: {data.floodRisk}
-          </Badge>
-        </div>
-
-        <Separator />
-
-        {/* Demographics */}
-        <Card className="bg-gradient-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="h-4 w-4 text-secondary" />
-            <h4 className="font-semibold text-foreground">Dados Socioeconômicos</h4>
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">População estimada:</span>
-              <span className="font-medium text-foreground">
-                {data.population?.toLocaleString('pt-BR')}
-              </span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Saneamento adequado:</span>
-              <span className="font-medium text-foreground">{data.sanitation}%</span>
-            </div>
-          </div>
-        </Card>
-
-        {/* Environmental Data */}
-        <Card className="bg-gradient-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Leaf className="h-4 w-4 text-ndvi" />
-            <h4 className="font-semibold text-foreground">Indicadores Ambientais</h4>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-muted-foreground">NDVI Médio (vegetação):</span>
-                <span className="font-medium text-foreground">{data.avgNDVI}</span>
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-3">
+            {searchResults.length > 0 ? (
+              <>
+                <div className="flex items-center gap-2 mb-2">
+                  <Satellite className="h-4 w-4 text-primary" />
+                  <p className="text-sm text-muted-foreground">
+                    {searchResults.length} {searchResults.length === 1 ? 'imagem encontrada' : 'imagens encontradas'}
+                  </p>
+                </div>
+                
+                {searchResults.map((result, index) => (
+                  <Card 
+                    key={result.id || index}
+                    className="p-3 hover:bg-accent/50 transition-colors cursor-pointer"
+                    onClick={() => onImageSelect?.(result, result.collection)}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="secondary" className="text-xs">
+                              {getCollectionName(result.collection)}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {result.id}
+                          </p>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onImageSelect?.(result, result.collection);
+                          }}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>
+                          {format(new Date(result.datetime), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                        </span>
+                      </div>
+                      
+                      {result.platform && (
+                        <div className="text-xs text-muted-foreground">
+                          Plataforma: {result.platform}
+                        </div>
+                      )}
+                      
+                      {result.polarizations && result.polarizations.length > 0 && (
+                        <div className="flex gap-1">
+                          {result.polarizations.map((pol: string) => (
+                            <Badge key={pol} variant="outline" className="text-xs">
+                              {pol}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                ))}
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Satellite className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  Desenhe uma área no mapa e clique em pesquisar para ver as imagens disponíveis
+                </p>
               </div>
-              <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-ndvi transition-all"
-                  style={{ width: `${(data.avgNDVI / 1) * 100}%` }}
-                />
-              </div>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <Thermometer className="h-3 w-3 text-lst" />
-                <span className="text-muted-foreground">Temp. Superfície (LST):</span>
-              </div>
-              <span className="font-medium text-foreground">{data.avgLST}°C</span>
-            </div>
+            )}
           </div>
-        </Card>
-
-        {/* Risk Analysis */}
-        <Card className="bg-gradient-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Droplets className="h-4 w-4 text-flood" />
-            <h4 className="font-semibold text-foreground">Análise de Inundação</h4>
-          </div>
-          <p className="text-sm text-muted-foreground mb-3">
-            Área com histórico de alagamentos frequentes durante período chuvoso.
-            Dados SAR indicam presença de água em 15% da área nos últimos 7 dias.
-          </p>
-          <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-md">
-            <AlertTriangle className="h-4 w-4 text-risk-medium mt-0.5" />
-            <p className="text-xs text-muted-foreground">
-              Recomenda-se monitoramento contínuo e implementação de sistemas de drenagem.
-            </p>
-          </div>
-        </Card>
-
-        {/* FIRMS Hotspots */}
-        <Card className="bg-gradient-card p-4">
-          <h4 className="font-semibold text-foreground mb-2">
-            Focos de Calor (FIRMS)
-          </h4>
-          <p className="text-sm text-muted-foreground">
-            Nenhum foco de calor detectado nos últimos 7 dias nesta área.
-          </p>
-        </Card>
-        </div>
+        </ScrollArea>
       )}
     </div>
   );

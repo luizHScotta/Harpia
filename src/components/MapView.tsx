@@ -16,7 +16,12 @@ interface MapViewProps {
   layers: Layer[];
   onFeatureClick: (data: any) => void;
   onAOIChange: (aoi: any) => void;
-  onSearchComplete: (handleSearch: (start: string, end: string) => Promise<void>, isSearching: boolean) => void;
+  onSearchComplete: (
+    handleSearch: (start: string, end: string) => Promise<void>, 
+    isSearching: boolean,
+    results?: any[],
+    imageSelectFn?: (result: any, collection: string) => void
+  ) => void;
 }
 
 interface SatelliteLayer {
@@ -631,6 +636,10 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
         if (data.success && data.results.length > 0) {
           const result = data.results[0];
           await handleResultSelect(result, collection);
+          
+          // Passar todos os resultados para exibir na galeria
+          onSearchComplete(handleSearch, isSearching, data.results, handleResultSelect);
+          
           toast.success(`${data.count} cenas encontradas`, {
             description: `Carregando primeira cena...`,
           });
@@ -657,6 +666,10 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
         if (data.success && data.results.length > 0) {
           const result = data.results[0];
           await handleResultSelect(result, collection);
+          
+          // Passar todos os resultados para exibir na galeria
+          onSearchComplete(handleSearch, isSearching, data.results, handleResultSelect);
+          
           toast.success(`${data.count} itens encontrados`, {
             description: `Carregando primeiro item...`,
           });
@@ -678,7 +691,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
 
   // Expose search function to parent - atualizar sempre que currentAOI ou isSearching mudar
   useEffect(() => {
-    onSearchComplete(handleSearch, isSearching);
+    onSearchComplete(handleSearch, isSearching, undefined, handleResultSelect);
   }, [currentAOI, isSearching]);
 
   const getActiveCollection = () => {
