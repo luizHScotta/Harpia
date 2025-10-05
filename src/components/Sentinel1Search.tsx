@@ -21,7 +21,7 @@ interface Sentinel1Result {
 
 interface Sentinel1SearchProps {
   aoi: any | null;
-  onResultSelect: (result: Sentinel1Result, isMultiple?: boolean, index?: number) => void;
+  onResultSelect: (result: Sentinel1Result, collection?: string, isMultiple?: boolean, index?: number) => void;
 }
 
 const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
@@ -223,7 +223,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
                     variant="outline"
                     onClick={() => {
                       results.forEach((result, index) => {
-                        setTimeout(() => onResultSelect(result, true, index), index * 100);
+                        setTimeout(() => onResultSelect(result, collection, true, index), index * 100);
                       });
                       toast.success(`Carregando ${results.length} imagens...`);
                     }}
@@ -244,7 +244,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
                 <Card
                   key={result.id}
                   className="p-3 cursor-pointer hover:bg-accent/50 transition-colors border-l-2 border-l-sar-primary"
-                  onClick={() => onResultSelect(result)}
+                  onClick={() => onResultSelect(result, collection)}
                 >
                   <div className="space-y-2">
                     <div className="flex items-start justify-between">

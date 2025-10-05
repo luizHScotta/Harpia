@@ -5,8 +5,10 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { Layer } from "./LayerControl";
 import Sentinel1Search from "./Sentinel1Search";
+import PlanetarySearch from "./PlanetarySearch";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Box, Cuboid } from "lucide-react";
 
 // Mapbox token configured
 const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
@@ -31,6 +33,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentAOI, setCurrentAOI] = useState<any>(null);
   const [currentImageResult, setCurrentImageResult] = useState<any>(null);
+  const [is3DMode, setIs3DMode] = useState(false);
+  const [activeSearchType, setActiveSearchType] = useState<'sentinel1' | 'planetary'>('sentinel1');
 
   console.log("MapView render - mapLoaded:", mapLoaded);
 
@@ -209,6 +213,31 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
   };
 
+  const toggle3DMode = () => {
+    if (!map.current) return;
+    
+    const newMode = !is3DMode;
+    setIs3DMode(newMode);
+    
+    if (newMode) {
+      // Ativar 3D
+      map.current.easeTo({
+        pitch: 60,
+        bearing: 0,
+        duration: 1000
+      });
+      toast.success("Modo 3D ativado");
+    } else {
+      // Voltar para 2D
+      map.current.easeTo({
+        pitch: 0,
+        bearing: 0,
+        duration: 1000
+      });
+      toast.success("Modo 2D ativado");
+    }
+  };
+
   const removeImageOverlay = () => {
     if (!map.current) return;
     
@@ -238,7 +267,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     console.log("🗑️ All image overlays removed");
   };
 
-  const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0) => {
+  const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0, collection?: string) => {
     if (!map.current || !result) return;
     
     const mapInstance = map.current;
@@ -247,6 +276,10 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     const hasSentinel1VV = activeLayers.some(l => l.id === 'sentinel1-vv');
     const hasSentinel1VH = activeLayers.some(l => l.id === 'sentinel1-vh');
     const hasSentinel2 = activeLayers.some(l => l.id === 'sentinel2');
+    const hasLandsat = activeLayers.some(l => l.id === 'landsat');
+    const hasDEM = activeLayers.some(l => l.id === 'dem');
+    const hasNASADEM = activeLayers.some(l => l.id === 'nasadem');
+    const hasALOSDEM = activeLayers.some(l => l.id === 'alosdem');
     
     let imageUrl = null;
     let opacity = 0.75;
@@ -267,13 +300,38 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       // Use VH polarization
       imageUrl = result.assets?.vh?.href || result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
-    } else if (hasSentinel2) {
-      // For Sentinel-2, we would need to fetch from a different collection
-      // For now, show a message
-      toast.info("Sentinel-2 ainda não implementado", {
-        description: "Use as camadas Sentinel-1 para visualizar dados SAR"
-      });
-      return;
+    } else if (hasSentinel2 && collection === 'sentinel-2-l2a') {
+      // Sentinel-2 True Color
+      imageUrl = result.assets?.visual?.href || result.assets?.rendered_preview?.href;
+      opacity = (activeLayers.find(l => l.id === 'sentinel2')?.opacity || 80) / 100;
+    } else if (hasLandsat && collection === 'landsat-c2-l2') {
+      // Landsat True Color
+      imageUrl = result.assets?.rendered_preview?.href;
+      opacity = (activeLayers.find(l => l.id === 'landsat')?.opacity || 80) / 100;
+    } else if (hasDEM && collection === 'cop-dem-glo-30') {
+      // DEM visualization
+      imageUrl = result.assets?.data?.href || result.assets?.rendered_preview?.href;
+      opacity = (activeLayers.find(l => l.id === 'dem')?.opacity || 70) / 100;
+      
+      // Enable terrain for DEM
+      if (is3DMode && result.assets?.data?.href) {
+        try {
+          mapInstance.addSource('dem-terrain', {
+            type: 'raster-dem',
+            url: result.assets.data.href,
+            tileSize: 512
+          });
+          mapInstance.setTerrain({ source: 'dem-terrain', exaggeration: 1.5 });
+        } catch (e) {
+          console.log("Terrain already exists or error:", e);
+        }
+      }
+    } else if (hasNASADEM && collection === 'nasadem') {
+      imageUrl = result.assets?.elevation?.href || result.assets?.rendered_preview?.href;
+      opacity = (activeLayers.find(l => l.id === 'nasadem')?.opacity || 70) / 100;
+    } else if (hasALOSDEM && collection === 'alos-dem') {
+      imageUrl = result.assets?.data?.href || result.assets?.rendered_preview?.href;
+      opacity = (activeLayers.find(l => l.id === 'alosdem')?.opacity || 70) / 100;
     } else {
       // No relevant layers enabled, remove overlay
       return;
@@ -328,8 +386,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
   };
 
-  const handleResultSelect = async (result: any, isMultiple: boolean = false, index: number = 0) => {
-    console.log("🎯 Selected SAR result:", result);
+  const handleResultSelect = async (result: any, collection?: string, isMultiple: boolean = false, index: number = 0) => {
+    console.log("🎯 Selected result:", result, "Collection:", collection);
 
     if (!map.current || !mapLoaded) {
       toast.error("Aguarde o mapa carregar");
@@ -344,7 +402,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       }
       
       const activeLayers = layers.filter(l => l.enabled);
-      await updateImageOverlay(result, activeLayers, index);
+      await updateImageOverlay(result, activeLayers, index, collection);
 
       if (!isMultiple) {
         // Fit map to image bounds only for single images
@@ -376,20 +434,51 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
   };
 
+  // Determine which search component to show based on active layers
+  useEffect(() => {
+    const activeLayers = layers.filter(l => l.enabled);
+    const hasSentinel1 = activeLayers.some(l => l.id.startsWith('sentinel1'));
+    const hasOther = activeLayers.some(l => ['sentinel2', 'landsat', 'dem', 'nasadem', 'alosdem'].includes(l.id));
+    
+    if (hasOther && !hasSentinel1) {
+      setActiveSearchType('planetary');
+    } else if (hasSentinel1) {
+      setActiveSearchType('sentinel1');
+    }
+  }, [layers]);
+
+  const getActiveCollection = () => {
+    const activeLayers = layers.filter(l => l.enabled);
+    if (activeLayers.some(l => l.id === 'sentinel2')) return 'sentinel-2-l2a';
+    if (activeLayers.some(l => l.id === 'landsat')) return 'landsat-c2-l2';
+    if (activeLayers.some(l => l.id === 'dem')) return 'cop-dem-glo-30';
+    if (activeLayers.some(l => l.id === 'nasadem')) return 'nasadem';
+    if (activeLayers.some(l => l.id === 'alosdem')) return 'alos-dem';
+    return 'sentinel-2-l2a';
+  };
+
   return (
     <div className="w-full h-full">
       <div ref={mapContainer} className="absolute inset-0" />
       
-      <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
+      {activeSearchType === 'sentinel1' ? (
+        <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
+      ) : (
+        <PlanetarySearch 
+          aoi={currentAOI} 
+          activeCollection={getActiveCollection()}
+          onResultSelect={handleResultSelect} 
+        />
+      )}
       
-      {/* Botão para limpar polígonos */}
-      {currentAOI && (
-        <div className="absolute top-20 left-4 z-10">
+      {/* Botões de controle */}
+      <div className="absolute top-20 left-4 z-10 space-y-2">
+        {currentAOI && (
           <Button
             onClick={clearAllPolygons}
             variant="destructive"
             size="sm"
-            className="shadow-elevated"
+            className="shadow-elevated w-full"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -409,8 +498,27 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
             </svg>
             Limpar Polígonos
           </Button>
-        </div>
-      )}
+        )}
+        
+        <Button
+          onClick={toggle3DMode}
+          variant={is3DMode ? "default" : "outline"}
+          size="sm"
+          className="shadow-elevated w-full"
+        >
+          {is3DMode ? (
+            <>
+              <Box className="mr-2 h-4 w-4" />
+              Modo 2D
+            </>
+          ) : (
+            <>
+              <Cuboid className="mr-2 h-4 w-4" />
+              Modo 3D
+            </>
+          )}
+        </Button>
+      </div>
       
       {/* Overlay watermark */}
       <div className="absolute bottom-4 left-4 bg-card/80 backdrop-blur-sm px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground z-10">

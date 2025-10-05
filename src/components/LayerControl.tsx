@@ -12,7 +12,9 @@ import {
   Droplets,
   AlertTriangle,
   Flame,
-  Users
+  Users,
+  Mountain,
+  Satellite
 } from "lucide-react";
 import {
   Collapsible,
@@ -48,6 +50,7 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange }: LayerControlPr
   const categories = [
     { id: "SAR", name: "Dados SAR (Radar)", color: "text-sar" },
     { id: "Óptico", name: "Dados Ópticos", color: "text-optical" },
+    { id: "Topografia", name: "Dados Topográficos", color: "text-topo" },
     { id: "Análises", name: "Produtos Derivados", color: "text-ndvi" },
     { id: "Socioambiental", name: "Socioambiental", color: "text-secondary" }
   ];
@@ -176,11 +179,51 @@ export const defaultLayers: Layer[] = [
     id: "sentinel2",
     name: "Sentinel-2 RGB",
     category: "Óptico",
-    icon: Eye,
+    icon: Satellite,
     color: "hsl(120 60% 45%)",
-    enabled: true,
+    enabled: false,
     opacity: 80,
     description: "Imagem óptica true-color"
+  },
+  {
+    id: "landsat",
+    name: "Landsat 8/9",
+    category: "Óptico",
+    icon: Satellite,
+    color: "hsl(150 60% 45%)",
+    enabled: false,
+    opacity: 80,
+    description: "Imagem óptica Landsat"
+  },
+  {
+    id: "dem",
+    name: "Copernicus DEM",
+    category: "Topografia",
+    icon: Mountain,
+    color: "hsl(30 70% 50%)",
+    enabled: false,
+    opacity: 70,
+    description: "Modelo Digital de Elevação 30m"
+  },
+  {
+    id: "nasadem",
+    name: "NASA DEM",
+    category: "Topografia",
+    icon: Mountain,
+    color: "hsl(25 70% 45%)",
+    enabled: false,
+    opacity: 70,
+    description: "SRTM v3 NASA DEM"
+  },
+  {
+    id: "alosdem",
+    name: "ALOS World 3D",
+    category: "Topografia",
+    icon: Mountain,
+    color: "hsl(35 70% 50%)",
+    enabled: false,
+    opacity: 70,
+    description: "ALOS Global DEM 30m"
   },
   {
     id: "ndvi",
