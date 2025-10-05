@@ -36,6 +36,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
   const [currentImageResult, setCurrentImageResult] = useState<any>(null);
   const [is3DMode, setIs3DMode] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const imageCache = useRef<Map<string, string>>(new Map());
 
   console.log("MapView render - mapLoaded:", mapLoaded);
 
@@ -311,8 +312,73 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
     console.log("🗑️ All image overlays removed");
   };
 
+  const clipImageToPolygon = async (imageUrl: string, bbox: number[], polygonCoords: number[][]): Promise<string> => {
+    const cacheKey = `${imageUrl}-${JSON.stringify(polygonCoords)}`;
+    
+    // Verificar cache
+    if (imageCache.current.has(cacheKey)) {
+      console.log("✅ Using cached clipped image");
+      return imageCache.current.get(cacheKey)!;
+    }
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('Could not get canvas context');
+
+          // Configurar tamanho do canvas baseado na imagem
+          canvas.width = img.width;
+          canvas.height = img.height;
+
+          const [west, south, east, north] = bbox;
+          const bboxWidth = east - west;
+          const bboxHeight = north - south;
+
+          // Converter coordenadas do polígono para pixels do canvas
+          const pixelCoords = polygonCoords.map(([lng, lat]) => {
+            const x = ((lng - west) / bboxWidth) * canvas.width;
+            const y = ((north - lat) / bboxHeight) * canvas.height;
+            return [x, y];
+          });
+
+          // Aplicar clip path do polígono
+          ctx.beginPath();
+          pixelCoords.forEach(([x, y], i) => {
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.closePath();
+          ctx.clip();
+
+          // Desenhar imagem com clip aplicado
+          ctx.drawImage(img, 0, 0);
+
+          // Converter para data URL
+          const clippedImageUrl = canvas.toDataURL('image/png');
+          
+          // Armazenar em cache
+          imageCache.current.set(cacheKey, clippedImageUrl);
+          console.log("✅ Image clipped and cached");
+          
+          resolve(clippedImageUrl);
+        } catch (error) {
+          console.error('❌ Error clipping image:', error);
+          reject(error);
+        }
+      };
+
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = imageUrl;
+    });
+  };
+
   const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0, collection?: string) => {
-    if (!map.current || !result) return;
+    if (!map.current || !result || !currentAOI) return;
     
     const mapInstance = map.current;
     
@@ -435,10 +501,14 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       const [west, south, east, north] = result.bbox;
       console.log("📦 BBox:", { west, south, east, north });
       
-      // Add image source
+      // Recortar imagem pelo polígono
+      const polygonCoords = currentAOI.geometry.coordinates[0];
+      const clippedImageUrl = await clipImageToPolygon(imageUrl, result.bbox, polygonCoords);
+      
+      // Add image source com imagem recortada
       mapInstance.addSource(sourceId, {
         type: 'image',
-        url: imageUrl,
+        url: clippedImageUrl,
         coordinates: [
           [west, north],
           [east, north],
@@ -446,7 +516,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
           [west, south]
         ]
       });
-      console.log(`✅ Added image source: ${sourceId}`);
+      console.log(`✅ Added clipped image source: ${sourceId}`);
 
       // Add raster layer with dynamic opacity
       // Colocar acima do terreno 3D se existir
@@ -465,7 +535,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       }, firstSymbolId);
 
       console.log(`✅ Image overlay ${layerIndex} added successfully - opacity: ${opacity}`);
-      toast.success("Imagem sobreposta ao mapa", {
+      toast.success("Imagem recortada sobreposta ao mapa", {
         description: `Opacidade: ${Math.round(opacity * 100)}%`
       });
       
