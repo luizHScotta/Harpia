@@ -110,8 +110,8 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
       }
     } catch (error: any) {
       console.error("Search error:", error);
-      toast.error(t("common.searching"), {
-        description: error.message,
+      toast.error(t("toast.error.title"), {
+        description: error.message || t("toast.error.retryMessage"),
       });
       setResults([]);
     } finally {
@@ -227,7 +227,7 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
                       results.forEach((result, index) => {
                         setTimeout(() => onResultSelect(result, collection, true, index), index * 100);
                       });
-                      toast.success(t("planetary.loadingImages"));
+                      toast.success(t("toast.loading.title"));
                     }}
                     className="text-xs"
                   >

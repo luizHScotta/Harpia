@@ -44,12 +44,13 @@ interface LayerControlProps {
   layers: Layer[];
   onLayerToggle: (id: string) => void;
   onOpacityChange: (id: string, opacity: number) => void;
+  onClearAll: () => void;
   aoi: any | null;
   onSearch: (startDate: string, endDate: string) => void;
   isSearching: boolean;
 }
 
-const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, isSearching }: LayerControlProps) => {
+const LayerControl = ({ layers, onLayerToggle, onOpacityChange, onClearAll, aoi, onSearch, isSearching }: LayerControlProps) => {
   const { t } = useLanguage();
   const [openCategories, setOpenCategories] = useState<string[]>([
     "SAR",
@@ -92,12 +93,24 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, i
   return (
     <div className="space-y-4">
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-1">
-          {t("layers.title")}
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          {t("layers.subtitle")}
-        </p>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground mb-1">
+              {t("layers.title")}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {t("layers.subtitle")}
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearAll}
+            className="text-xs"
+          >
+            {t("layers.clearAll")}
+          </Button>
+        </div>
       </div>
 
       {/* Search Controls - shown when layer is active */}
@@ -199,10 +212,10 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, i
                             <Icon className="h-4 w-4" style={{ color: layer.color }} />
                             <div className="flex-1">
                               <Label htmlFor={layer.id} className="text-sm font-medium">
-                                {layer.name}
+                                {t(`layers.${layer.id}.name`)}
                               </Label>
                               <p className="text-xs text-muted-foreground mt-0.5">
-                                {layer.description}
+                                {t(`layers.${layer.id}.desc`)}
                               </p>
                             </div>
                           </div>
@@ -254,7 +267,7 @@ export const defaultLayers: Layer[] = [
     category: "SAR",
     icon: Radar,
     color: "hsl(200 80% 45%)",
-    enabled: true,
+    enabled: false,
     opacity: 100,
     description: "Backscatter VV polarização"
   },

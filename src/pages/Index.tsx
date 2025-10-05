@@ -4,8 +4,10 @@ import Header from "@/components/Header";
 import LayerControl, { defaultLayers, Layer } from "@/components/LayerControl";
 import MapView from "@/components/MapView";
 import InfoPanel from "@/components/InfoPanel";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Index = () => {
+  const { t, language } = useLanguage();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [layers, setLayers] = useState<Layer[]>(defaultLayers);
   const [selectedFeature, setSelectedFeature] = useState<any>(null);
@@ -32,12 +34,24 @@ const Index = () => {
     );
   };
 
+  const handleClearAll = () => {
+    setLayers(prev =>
+      prev.map(layer => ({ ...layer, enabled: false }))
+    );
+    toast.success(t("layers.cleared"));
+  };
+
   const handleFeatureClick = (data: any) => {
     setSelectedFeature(data);
     setInfoPanelOpen(true);
-    toast.success("Área selecionada", {
-      description: `Carregando dados de ${data.name}`,
-    });
+    toast.success(
+      language === "pt" ? "Área selecionada" : "Area selected",
+      {
+        description: language === "pt" 
+          ? `Carregando dados de ${data.name}`
+          : `Loading data from ${data.name}`,
+      }
+    );
   };
 
   const handleAOIChange = (aoi: any) => {
@@ -62,9 +76,14 @@ const Index = () => {
   };
 
   const handleExport = () => {
-    toast.success("Relatório em preparação", {
-      description: "O download iniciará em instantes",
-    });
+    toast.success(
+      language === "pt" ? "Relatório em preparação" : "Report in preparation",
+      {
+        description: language === "pt" 
+          ? "O download iniciará em instantes"
+          : "Download will start shortly",
+      }
+    );
   };
 
   return (
@@ -82,6 +101,7 @@ const Index = () => {
               layers={layers}
               onLayerToggle={handleLayerToggle}
               onOpacityChange={handleOpacityChange}
+              onClearAll={handleClearAll}
               aoi={currentAOI}
               onSearch={handleSearch}
               isSearching={isSearching}

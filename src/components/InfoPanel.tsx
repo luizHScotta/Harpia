@@ -31,21 +31,22 @@ const InfoPanel = ({ data, isOpen, searchResults = [], onImageSelect }: InfoPane
   if (!isOpen) return null;
 
   const getCollectionName = (collection: string) => {
-    const names: Record<string, string> = {
-      'sentinel-1-grd': 'Sentinel-1 SAR',
-      'sentinel-2-l2a': 'Sentinel-2 Óptico',
-      'landsat-c2-l2': 'Landsat',
-      'cop-dem-glo-30': 'Copernicus DEM',
-      'nasadem': 'NASA DEM',
-      'alos-dem': 'ALOS DEM',
-      'modis-09Q1-061': 'MODIS Reflectância',
-      'modis-13A1-061': 'MODIS Vegetação',
-      'modis-17A3HGF-061': 'MODIS Biomassa',
-      'modis-11A1-061': 'MODIS Temperatura',
-      'hgb': 'Biomassa Global',
-      'esa-worldcover': 'ESA WorldCover'
+    const names: Record<string, { en: string; pt: string }> = {
+      'sentinel-1-grd': { en: 'Sentinel-1 SAR', pt: 'Sentinel-1 SAR' },
+      'sentinel-2-l2a': { en: 'Sentinel-2 Optical', pt: 'Sentinel-2 Óptico' },
+      'landsat-c2-l2': { en: 'Landsat', pt: 'Landsat' },
+      'cop-dem-glo-30': { en: 'Copernicus DEM', pt: 'Copernicus DEM' },
+      'nasadem': { en: 'NASA DEM', pt: 'NASA DEM' },
+      'alos-dem': { en: 'ALOS DEM', pt: 'ALOS DEM' },
+      'modis-09Q1-061': { en: 'MODIS Reflectance', pt: 'MODIS Reflectância' },
+      'modis-13A1-061': { en: 'MODIS Vegetation', pt: 'MODIS Vegetação' },
+      'modis-17A3HGF-061': { en: 'MODIS Biomass', pt: 'MODIS Biomassa' },
+      'modis-11A1-061': { en: 'MODIS Temperature', pt: 'MODIS Temperatura' },
+      'hgb': { en: 'Global Biomass', pt: 'Biomassa Global' },
+      'esa-worldcover': { en: 'ESA WorldCover', pt: 'ESA WorldCover' }
     };
-    return names[collection] || collection;
+    const name = names[collection];
+    return name ? name[language] : collection;
   };
 
   return (
@@ -72,7 +73,7 @@ const InfoPanel = ({ data, isOpen, searchResults = [], onImageSelect }: InfoPane
                 <div className="flex items-center gap-2 mb-2">
                   <Satellite className="h-4 w-4 text-primary" />
                   <p className="text-sm text-muted-foreground">
-                    {searchResults.length} {searchResults.length === 1 ? (language === "pt" ? "imagem encontrada" : "image found") : (language === "pt" ? "imagens encontradas" : "images found")}
+                    {searchResults.length} {searchResults.length === 1 ? t("info.imageFound") : t("info.imagesFound")}
                   </p>
                 </div>
                 
@@ -116,7 +117,7 @@ const InfoPanel = ({ data, isOpen, searchResults = [], onImageSelect }: InfoPane
                       
                       {result.platform && (
                         <div className="text-xs text-muted-foreground">
-                          {language === "pt" ? "Plataforma" : "Platform"}: {result.platform}
+                          {t("info.platform")}: {result.platform}
                         </div>
                       )}
                       
