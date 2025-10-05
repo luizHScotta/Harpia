@@ -514,8 +514,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   };
 
   return (
-    <div className="w-full h-full relative">
-      <div ref={mapContainer} className="absolute inset-0 w-full h-full" />
+    <div className="absolute inset-0">
+      <div ref={mapContainer} className="w-full h-full" />
       
       {activeSearchType === 'sentinel1' ? (
         <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
