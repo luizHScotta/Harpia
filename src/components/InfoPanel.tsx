@@ -13,7 +13,8 @@ import {
   Eye
 } from "lucide-react";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { ptBR, enUS } from "date-fns/locale";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface InfoPanelProps {
   data?: any;
@@ -24,6 +25,8 @@ interface InfoPanelProps {
 
 const InfoPanel = ({ data, isOpen, searchResults = [], onImageSelect }: InfoPanelProps) => {
   const [isMinimized, setIsMinimized] = useState(false);
+  const { language, t } = useLanguage();
+  const dateLocale = language === "pt" ? ptBR : enUS;
 
   if (!isOpen) return null;
 
@@ -49,7 +52,7 @@ const InfoPanel = ({ data, isOpen, searchResults = [], onImageSelect }: InfoPane
     <div className="w-96 bg-card border-l border-border h-full flex flex-col">
       <div className="p-4 border-b border-border flex items-center justify-between bg-card">
         <h3 className="font-semibold text-foreground">
-          {searchResults.length > 0 ? 'Imagens Encontradas' : 'Informações'}
+          {searchResults.length > 0 ? t("info.availableImages") : t("info.availableImages")}
         </h3>
         <Button
           variant="ghost"
@@ -69,7 +72,7 @@ const InfoPanel = ({ data, isOpen, searchResults = [], onImageSelect }: InfoPane
                 <div className="flex items-center gap-2 mb-2">
                   <Satellite className="h-4 w-4 text-primary" />
                   <p className="text-sm text-muted-foreground">
-                    {searchResults.length} {searchResults.length === 1 ? 'imagem encontrada' : 'imagens encontradas'}
+                    {searchResults.length} {searchResults.length === 1 ? (language === "pt" ? "imagem encontrada" : "image found") : (language === "pt" ? "imagens encontradas" : "images found")}
                   </p>
                 </div>
                 
@@ -107,13 +110,13 @@ const InfoPanel = ({ data, isOpen, searchResults = [], onImageSelect }: InfoPane
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />
                         <span>
-                          {format(new Date(result.datetime), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                          {format(new Date(result.datetime), language === "pt" ? "dd 'de' MMMM 'de' yyyy" : "MMMM dd, yyyy", { locale: dateLocale })}
                         </span>
                       </div>
                       
                       {result.platform && (
                         <div className="text-xs text-muted-foreground">
-                          Plataforma: {result.platform}
+                          {language === "pt" ? "Plataforma" : "Platform"}: {result.platform}
                         </div>
                       )}
                       
@@ -134,7 +137,7 @@ const InfoPanel = ({ data, isOpen, searchResults = [], onImageSelect }: InfoPane
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Satellite className="h-12 w-12 text-muted-foreground/50 mb-3" />
                 <p className="text-sm text-muted-foreground">
-                  Desenhe uma área no mapa e clique em pesquisar para ver as imagens disponíveis
+                  {t("info.noImages")}
                 </p>
               </div>
             )}
