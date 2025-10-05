@@ -21,7 +21,7 @@ interface Sentinel1Result {
 
 interface Sentinel1SearchProps {
   aoi: any | null;
-  onResultSelect: (result: Sentinel1Result) => void;
+  onResultSelect: (result: Sentinel1Result, isMultiple?: boolean, index?: number) => void;
 }
 
 const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
@@ -46,6 +46,16 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
   const [endDate, setEndDate] = useState(defaults.end);
   const [collection, setCollection] = useState<string>("sentinel-1-grd");
 
+  const calculatePolygonArea = (coordinates: number[][][]) => {
+    // Simplified area calculation (not exact, but good enough for detection)
+    const coords = coordinates[0];
+    let area = 0;
+    for (let i = 0; i < coords.length - 1; i++) {
+      area += (coords[i][0] * coords[i + 1][1]) - (coords[i + 1][0] * coords[i][1]);
+    }
+    return Math.abs(area / 2);
+  };
+
   const handleSearch = async () => {
     if (!aoi) {
       toast.error("Defina uma área de interesse no mapa", {
@@ -62,12 +72,18 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
       const startISO = new Date(startDate + 'T00:00:00Z').toISOString();
       const endISO = new Date(endDate + 'T23:59:59Z').toISOString();
 
+      // Calcular área do polígono
+      const polygonArea = calculatePolygonArea(aoi.coordinates);
+      const isLargeArea = polygonArea > 1; // Área maior que 1 grau² (~12000 km²)
+      
+      const maxResults = isLargeArea ? 200 : 50; // Buscar mais resultados para áreas grandes
+
       const { data, error } = await supabase.functions.invoke('search-sentinel1', {
         body: {
           aoi,
           startDate: startISO,
           endDate: endISO,
-          maxResults: 50,
+          maxResults: maxResults,
           collection: collection
         }
       });
@@ -77,9 +93,16 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
       if (data.success) {
         setResults(data.results);
         const collectionName = collection === 'sentinel-1-grd' ? 'GRD' : 'RTC';
-        toast.success(`${data.count} cenas encontradas`, {
-          description: `Sentinel-1 ${collectionName} de ${startDate} a ${endDate}`,
-        });
+        
+        if (isLargeArea && data.count > 1) {
+          toast.success(`${data.count} cenas encontradas (área grande)`, {
+            description: `Clique em "Carregar Todas" para visualizar o mosaico completo`,
+          });
+        } else {
+          toast.success(`${data.count} cenas encontradas`, {
+            description: `Sentinel-1 ${collectionName} de ${startDate} a ${endDate}`,
+          });
+        }
       } else {
         throw new Error(data.error);
       }
@@ -194,6 +217,21 @@ const Sentinel1Search = ({ aoi, onResultSelect }: Sentinel1SearchProps) => {
                 <span className="text-sm font-medium text-foreground">
                   Resultados ({results.length})
                 </span>
+                {results.length > 1 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      results.forEach((result, index) => {
+                        setTimeout(() => onResultSelect(result, true, index), index * 100);
+                      });
+                      toast.success(`Carregando ${results.length} imagens...`);
+                    }}
+                    className="text-xs"
+                  >
+                    Carregar Todas
+                  </Button>
+                )}
               </div>
 
               {results.length === 0 && !isSearching && (

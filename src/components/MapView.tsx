@@ -6,6 +6,7 @@ import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { Layer } from "./LayerControl";
 import Sentinel1Search from "./Sentinel1Search";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 // Mapbox token configured
 const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
@@ -70,7 +71,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       displayControlsDefault: false,
       controls: {
         polygon: true,
-        trash: true
+        trash: false // Desabilitar botão trash padrão, vamos criar o nosso
       },
       defaultMode: 'simple_select'
     });
@@ -84,9 +85,20 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     function updateArea() {
       const data = draw.current?.getAll();
       if (data && data.features.length > 0) {
-        const polygon = data.features[0];
-        setCurrentAOI(polygon.geometry);
-        console.log("AOI updated:", polygon.geometry);
+        // Manter apenas o polígono mais recente
+        if (data.features.length > 1) {
+          const latestFeature = data.features[data.features.length - 1];
+          // Deletar todos os polígonos anteriores
+          data.features.slice(0, -1).forEach(feature => {
+            draw.current?.delete(feature.id as string);
+          });
+          setCurrentAOI(latestFeature.geometry);
+          console.log("AOI updated (latest only):", latestFeature.geometry);
+        } else {
+          const polygon = data.features[0];
+          setCurrentAOI(polygon.geometry);
+          console.log("AOI updated:", polygon.geometry);
+        }
       } else {
         setCurrentAOI(null);
         // Remove image overlay when polygon is deleted
@@ -187,27 +199,46 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     updateImageOverlay(currentImageResult, activeLayers);
   }, [layers, mapLoaded, currentAOI, currentImageResult]);
 
+  const clearAllPolygons = () => {
+    if (draw.current) {
+      draw.current.deleteAll();
+      setCurrentAOI(null);
+      setCurrentImageResult(null);
+      removeImageOverlay();
+      toast.success("Todos os polígonos removidos");
+    }
+  };
+
   const removeImageOverlay = () => {
     if (!map.current) return;
     
     const mapInstance = map.current;
-    const layerId = `sar-overlay`;
-    const sourceId = `${layerId}-source`;
     
-    try {
-      if (mapInstance.getLayer(layerId)) {
-        mapInstance.removeLayer(layerId);
+    // Remove all SAR overlays (pode ter múltiplos agora)
+    let layerIndex = 0;
+    while (true) {
+      const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
+      const sourceId = `${layerId}-source`;
+      
+      try {
+        if (mapInstance.getLayer(layerId)) {
+          mapInstance.removeLayer(layerId);
+          if (mapInstance.getSource(sourceId)) {
+            mapInstance.removeSource(sourceId);
+          }
+          layerIndex++;
+        } else {
+          break;
+        }
+      } catch (e) {
+        break;
       }
-      if (mapInstance.getSource(sourceId)) {
-        mapInstance.removeSource(sourceId);
-      }
-      console.log("🗑️ Image overlay removed");
-    } catch (e) {
-      console.log("No overlay to remove");
     }
+    
+    console.log("🗑️ All image overlays removed");
   };
 
-  const updateImageOverlay = async (result: any, activeLayers: Layer[]) => {
+  const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0) => {
     if (!map.current || !result) return;
     
     const mapInstance = map.current;
@@ -242,11 +273,9 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       toast.info("Sentinel-2 ainda não implementado", {
         description: "Use as camadas Sentinel-1 para visualizar dados SAR"
       });
-      removeImageOverlay();
       return;
     } else {
       // No relevant layers enabled, remove overlay
-      removeImageOverlay();
       return;
     }
     
@@ -255,7 +284,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       return;
     }
 
-    const layerId = `sar-overlay`;
+    const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
     const sourceId = `${layerId}-source`;
     
     try {
@@ -292,14 +321,14 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         }
       });
 
-      console.log(`✅ Image overlay updated - opacity: ${opacity}`);
+      console.log(`✅ Image overlay ${layerIndex} updated - opacity: ${opacity}`);
       
     } catch (error) {
-      console.error("❌ Error updating image overlay:", error);
+      console.error(`❌ Error updating image overlay ${layerIndex}:`, error);
     }
   };
 
-  const handleResultSelect = async (result: any) => {
+  const handleResultSelect = async (result: any, isMultiple: boolean = false, index: number = 0) => {
     console.log("🎯 Selected SAR result:", result);
 
     if (!map.current || !mapLoaded) {
@@ -308,34 +337,42 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
 
     try {
-      setCurrentImageResult(result);
+      if (!isMultiple) {
+        // Single image: replace current
+        setCurrentImageResult(result);
+        removeImageOverlay();
+      }
       
       const activeLayers = layers.filter(l => l.enabled);
-      await updateImageOverlay(result, activeLayers);
+      await updateImageOverlay(result, activeLayers, index);
 
-      // Fit map to image bounds
-      const [west, south, east, north] = result.bbox;
-      map.current.fitBounds([[west, south], [east, north]], {
-        padding: 50,
-        duration: 1000
-      });
+      if (!isMultiple) {
+        // Fit map to image bounds only for single images
+        const [west, south, east, north] = result.bbox;
+        map.current.fitBounds([[west, south], [east, north]], {
+          padding: 50,
+          duration: 1000
+        });
 
-      toast.success("Imagem carregada", {
-        description: `${result.collection} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
-      });
+        toast.success("Imagem carregada", {
+          description: `${result.collection} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
+        });
 
-      onFeatureClick({
-        name: result.id,
-        date: new Date(result.datetime).toLocaleDateString('pt-BR'),
-        platform: result.platform,
-        polarizations: result.polarizations?.join(', ') || 'N/A',
-        mode: result.instrumentMode,
-        collection: result.collection
-      });
+        onFeatureClick({
+          name: result.id,
+          date: new Date(result.datetime).toLocaleDateString('pt-BR'),
+          platform: result.platform,
+          polarizations: result.polarizations?.join(', ') || 'N/A',
+          mode: result.instrumentMode,
+          collection: result.collection
+        });
+      }
       
     } catch (error) {
       console.error("❌ Error loading image:", error);
-      toast.error("Erro ao carregar imagem");
+      if (!isMultiple) {
+        toast.error("Erro ao carregar imagem");
+      }
     }
   };
 
@@ -344,6 +381,36 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       <div ref={mapContainer} className="absolute inset-0" />
       
       <Sentinel1Search aoi={currentAOI} onResultSelect={handleResultSelect} />
+      
+      {/* Botão para limpar polígonos */}
+      {currentAOI && (
+        <div className="absolute top-20 left-4 z-10">
+          <Button
+            onClick={clearAllPolygons}
+            variant="destructive"
+            size="sm"
+            className="shadow-elevated"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="mr-2"
+            >
+              <path d="M3 6h18" />
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+            </svg>
+            Limpar Polígonos
+          </Button>
+        </div>
+      )}
       
       {/* Overlay watermark */}
       <div className="absolute bottom-4 left-4 bg-card/80 backdrop-blur-sm px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground z-10">
