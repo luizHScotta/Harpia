@@ -12,18 +12,22 @@ serve(async (req) => {
   }
 
   try {
-    const { aoi, startDate, endDate, collection, maxResults = 50 } = await req.json();
+    const { aoi, startDate, endDate, collection, maxResults = 50, skipDateFilter = false } = await req.json();
     
-    console.log("🔍 Searching Planetary Computer:", { collection, startDate, endDate });
+    console.log("🔍 Searching Planetary Computer:", { collection, startDate, endDate, skipDateFilter });
 
     // Build STAC search request
-    const searchBody = {
+    const searchBody: any = {
       collections: [collection],
       intersects: aoi,
-      datetime: `${startDate}/${endDate}`,
       limit: maxResults,
       sortby: [{ field: "properties.datetime", direction: "desc" }]
     };
+
+    // Skip datetime filter for static collections like DEM
+    if (!skipDateFilter && startDate && endDate) {
+      searchBody.datetime = `${startDate}/${endDate}`;
+    }
 
     // Planetary Computer STAC API
     const response = await fetch('https://planetarycomputer.microsoft.com/api/stac/v1/search', {

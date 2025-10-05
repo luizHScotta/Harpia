@@ -474,25 +474,26 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       }
     }
     
+    // Check collection type and apply appropriate rendering
     // Priority: Sentinel-1 VV/VH composite, then individual polarizations
-    else if (hasSentinel1VV && hasSentinel1VH) {
-      // Use rendered_preview which has proper SAS token
-      imageUrl = result.assets?.rendered_preview?.href;
-      opacity = Math.max(
-        activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100,
-        activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100
-      ) / 100;
-      console.log("✅ Using VV+VH composite:", imageUrl);
-    } else if (hasSentinel1VV) {
-      // Use rendered_preview which has proper SAS token
-      imageUrl = result.assets?.rendered_preview?.href;
-      opacity = (activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100) / 100;
-      console.log("✅ Using VV polarization:", imageUrl);
-    } else if (hasSentinel1VH) {
-      // Use rendered_preview which has proper SAS token
-      imageUrl = result.assets?.rendered_preview?.href;
-      opacity = (activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
-      console.log("✅ Using VH polarization:", imageUrl);
+    // Only process Sentinel-1 if the result collection matches
+    if (collection === 'sentinel-1-grd' || collection === 'sentinel-1-rtc') {
+      if (hasSentinel1VV && hasSentinel1VH) {
+        imageUrl = result.assets?.rendered_preview?.href;
+        opacity = Math.max(
+          activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100,
+          activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100
+        ) / 100;
+        console.log("✅ Using VV+VH composite:", imageUrl, "opacity:", opacity);
+      } else if (hasSentinel1VV) {
+        imageUrl = result.assets?.rendered_preview?.href;
+        opacity = (activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100) / 100;
+        console.log("✅ Using VV polarization:", imageUrl, "opacity:", opacity);
+      } else if (hasSentinel1VH) {
+        imageUrl = result.assets?.rendered_preview?.href;
+        opacity = (activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
+        console.log("✅ Using VH polarization:", imageUrl, "opacity:", opacity);
+      }
     } else if (hasSentinel2 && collection === 'sentinel-2-l2a') {
       // Sentinel-2 True Color
       imageUrl = result.assets?.visual?.href || result.assets?.rendered_preview?.href;
@@ -732,6 +733,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       const endDate = new Date().toISOString().split('T')[0];
       
       // MODIS products need longer time windows (composites every 8-16 days)
+      // Copernicus DEM doesn't use temporal queries
       const daysBack = config.collection.startsWith('modis') ? 180 : 90;
       const startDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -759,6 +761,27 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         } else {
           toast.warning('Nenhum dado encontrado');
         }
+      } else if (config.collection === 'cop-dem-glo-90') {
+        // Copernicus DEM is a static product - search without date range
+        const { data, error } = await supabase.functions.invoke('search-planetary-data', {
+          body: {
+            aoi: DEFAULT_BELEM_AOI,
+            collection: config.collection,
+            maxResults: 1,
+            skipDateFilter: true // Special flag for static collections
+          }
+        });
+
+        if (error) throw error;
+
+        if (data?.success && data.results.length > 0) {
+          handleResultSelect(data.results[0], config.collection);
+          toast.success(`✅ ${layerId} carregado`, {
+            description: 'Modelo digital de elevação'
+          });
+        } else {
+          toast.warning('Nenhum dado DEM encontrado');
+        }
       } else {
         // Use regular search for non-index layers
         const { data, error } = await supabase.functions.invoke('search-planetary-data', {
@@ -774,7 +797,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         if (error) throw error;
 
         if (data?.success && data.results.length > 0) {
-          handleResultSelect(data.results[0]);
+          handleResultSelect(data.results[0], config.collection);
           toast.success(`✅ ${layerId} carregado`, {
             description: `${data.count} cena(s) encontrada(s)`
           });
