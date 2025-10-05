@@ -40,12 +40,8 @@ All colors MUST be HSL.
 
     /* Geo-specific tokens */
     --sar-primary: 200 80% 45%;
-    --sar: 200 80% 50%;
     --optical-primary: 120 60% 45%;
-    --optical: 120 60% 45%;
     --ndvi-primary: 95 70% 45%;
-    --ndvi: 95 70% 45%;
-    --topo: 30 70% 50%;
     --lst-primary: 15 85% 55%;
     --flood-primary: 210 85% 50%;
     --risk-high: 0 72% 51%;
@@ -96,15 +92,6 @@ All colors MUST be HSL.
 
     --shadow-elevated: 0 8px 32px -8px hsl(210 30% 8% / 0.1);
     --shadow-glow: 0 0 24px hsl(200 80% 45% / 0.1);
-
-    /* Geo-specific tokens for light mode */
-    --sar-primary: 200 80% 60%;
-    --sar: 200 80% 55%;
-    --optical-primary: 120 60% 50%;
-    --optical: 120 60% 50%;
-    --ndvi-primary: 95 70% 50%;
-    --ndvi: 95 70% 50%;
-    --topo: 30 70% 55%;
   }
 
   .dark {
