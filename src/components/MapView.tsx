@@ -293,10 +293,10 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         north
       } = selectedArea;
 
-      // Process each active layer independently
+      // Process each layer
       for (const layer of layers) {
+        // Check if layer should be removed (disabled)
         if (!layer.enabled) {
-          // Remove layer if it's not visible
           const layerInfo = activeLayersRef.current.get(layer.id);
           if (layerInfo && mapRef.current) {
             if (mapRef.current.getLayer(layerInfo.layerId)) {
@@ -311,9 +311,9 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           continue;
         }
 
-        // Skip if layer is already loaded
+        // Skip if layer is already loaded (para manter camadas estáticas)
         if (activeLayersRef.current.has(layer.id)) {
-          console.log(`✅ Layer ${layer.id} already loaded`);
+          console.log(`✅ Layer ${layer.id} already loaded, keeping it`);
           continue;
         }
 
@@ -372,79 +372,89 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
 
         if (!collection) continue;
 
-        try {
-          console.log(`🔄 Loading layer: ${layer.id} with collection: ${collection}`);
-          toast.loading(`Carregando ${layer.name}...`, { id: `layer-${layer.id}` });
+        // Retry logic for API calls
+        let retries = 0;
+        const maxRetries = 2;
+        let success = false;
 
-          const { data, error } = await supabase.functions.invoke('search-planetary-data', {
-            body: {
-              collection,
-              bbox: [west, south, east, north],
-              datetime: dateRange ? `${dateRange.start}/${dateRange.end}` : undefined,
-              skipDateFilter: collection === 'cop-dem-glo-90'
+        while (retries <= maxRetries && !success) {
+          try {
+            console.log(`🔄 Loading layer: ${layer.id} (attempt ${retries + 1}/${maxRetries + 1})`);
+            
+            if (retries === 0) {
+              toast.loading(`Carregando ${layer.name}...`, { id: `layer-${layer.id}` });
+            } else {
+              toast.loading(`Tentando novamente... (${retries}/${maxRetries})`, { id: `layer-${layer.id}` });
             }
-          });
 
-          if (error) {
-            console.error(`❌ API Error for ${layer.id}:`, error);
-            toast.error(`Erro ao carregar ${layer.name}`, { 
-              id: `layer-${layer.id}`,
-              description: "A API está temporariamente indisponível. Tente novamente."
+            const { data, error } = await supabase.functions.invoke('search-planetary-data', {
+              body: {
+                collection,
+                bbox: [west, south, east, north],
+                datetime: dateRange ? `${dateRange.start}/${dateRange.end}` : undefined,
+                skipDateFilter: collection === 'cop-dem-glo-90'
+              }
             });
-            continue;
-          }
 
-          if (!data?.success) {
-            console.warn(`⚠️ No success flag for ${layer.id}`);
-            toast.warning(`Dados não encontrados para ${layer.name}`, { 
-              id: `layer-${layer.id}`,
-              description: "Tente ajustar a área ou período"
+            if (error) {
+              throw error;
+            }
+
+            if (!data?.success) {
+              throw new Error("API retornou sem sucesso");
+            }
+
+            if (!data?.items?.[0]) {
+              console.log(`⚠️ No data found for ${layer.id}`);
+              toast.warning(`Sem dados disponíveis para ${layer.name}`, { 
+                id: `layer-${layer.id}`,
+                description: "Nenhuma imagem encontrada nesta área"
+              });
+              break;
+            }
+
+            const item = data.items[0];
+            const renderParams = new URLSearchParams({
+              collection,
+              item: item.id,
+              tile_format: 'png',
+              format: 'png'
             });
-            continue;
-          }
 
-          if (!data?.items?.[0]) {
-            console.log(`⚠️ No data found for ${layer.id}`);
-            toast.warning(`Sem dados disponíveis para ${layer.name}`, { 
-              id: `layer-${layer.id}`,
-              description: "Nenhuma imagem encontrada nesta área"
-            });
-            continue;
-          }
+            if (assets.length > 0) {
+              assets.forEach(asset => renderParams.append('assets', asset));
+            }
+            if (colorFormula) {
+              renderParams.set('color_formula', colorFormula);
+            }
+            if (rescale) {
+              renderParams.set('rescale', rescale);
+            }
+            if (colormap) {
+              renderParams.set('colormap_name', colormap);
+            }
 
-          const item = data.items[0];
-          const renderParams = new URLSearchParams({
-            collection,
-            item: item.id,
-            tile_format: 'png',
-            format: 'png'
-          });
+            const imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?${renderParams.toString()}`;
+            console.log(`✅ Image URL for ${layer.id}:`, imageUrl);
 
-          if (assets.length > 0) {
-            assets.forEach(asset => renderParams.append('assets', asset));
+            await updateImageOverlay(imageUrl, [west, south, east, north], layer.id);
+            
+            toast.success(`${layer.name} carregada com sucesso`, { id: `layer-${layer.id}` });
+            success = true;
+          } catch (err: any) {
+            console.error(`❌ Error loading ${layer.id} (attempt ${retries + 1}):`, err);
+            
+            retries++;
+            if (retries > maxRetries) {
+              toast.error(`Falha ao carregar ${layer.name}`, { 
+                id: `layer-${layer.id}`,
+                description: "A API está temporariamente indisponível. Tente novamente mais tarde."
+              });
+            } else {
+              // Wait before retrying
+              await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+            }
           }
-          if (colorFormula) {
-            renderParams.set('color_formula', colorFormula);
-          }
-          if (rescale) {
-            renderParams.set('rescale', rescale);
-          }
-          if (colormap) {
-            renderParams.set('colormap_name', colormap);
-          }
-
-          const imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?${renderParams.toString()}`;
-          console.log(`✅ Loading image for ${layer.id}:`, imageUrl);
-
-          await updateImageOverlay(imageUrl, [west, south, east, north], layer.id);
-          
-          toast.success(`${layer.name} carregada com sucesso`, { id: `layer-${layer.id}` });
-        } catch (err: any) {
-          console.error(`❌ Error loading ${layer.id}:`, err);
-          toast.error(`Falha ao carregar ${layer.name}`, { 
-            id: `layer-${layer.id}`,
-            description: err.message || "Erro desconhecido"
-          });
         }
       }
     };
@@ -499,7 +509,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       </div>
 
       {/* Planetary Search Panel */}
-      <div className="absolute bottom-6 right-6 z-10 w-96">
+      <div className="absolute bottom-6 right-96 z-10 w-96">
         <PlanetarySearch
           aoi={currentAOI || DEFAULT_BELEM_AOI}
           activeCollection="sentinel-2-l2a"
