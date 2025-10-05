@@ -150,7 +150,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           type: "fill",
           source: "belem-areas",
           paint: {
-            "fill-color": "#4db8a0",
+            "fill-color": "hsl(165 65% 45%)",
             "fill-opacity": 0.2,
           },
         });
@@ -160,7 +160,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           type: "line",
           source: "belem-areas",
           paint: {
-            "line-color": "#4db8a0",
+            "line-color": "hsl(165 65% 45%)",
             "line-width": 2,
           },
         });
@@ -292,7 +292,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         type: 'fill',
         source: 'ibge-municipalities',
         paint: {
-          'fill-color': '#b366d6',
+          'fill-color': 'hsl(280 65% 60%)',
           'fill-opacity': opacity / 100
         }
       });
@@ -303,7 +303,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         type: 'line',
         source: 'ibge-municipalities',
         paint: {
-          'line-color': '#9747c2',
+          'line-color': 'hsl(280 65% 45%)',
           'line-width': 2
         }
       });
