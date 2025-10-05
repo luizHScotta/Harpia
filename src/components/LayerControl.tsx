@@ -235,7 +235,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(140 60% 45%)",
     enabled: false,
     opacity: 80,
-    description: "MODIS 250m (carrega automaticamente)"
+    description: "MODIS 250m Reflectância"
   },
   {
     id: "modis-vegetation",
@@ -245,7 +245,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(100 65% 45%)",
     enabled: false,
     opacity: 75,
-    description: "Índice NDVI MODIS (carrega automaticamente)"
+    description: "MODIS Índice de Vegetação"
   },
   {
     id: "modis-biomass",
@@ -255,7 +255,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(90 60% 40%)",
     enabled: false,
     opacity: 70,
-    description: "Produtividade primária (carrega automaticamente)"
+    description: "MODIS Produtividade Primária"
   },
   {
     id: "modis-temperature",
@@ -265,7 +265,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(20 80% 50%)",
     enabled: false,
     opacity: 65,
-    description: "Temperatura superfície (carrega automaticamente)"
+    description: "MODIS Temperatura Superfície"
   },
   {
     id: "global-biomass",
@@ -275,7 +275,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(85 55% 45%)",
     enabled: false,
     opacity: 70,
-    description: "HGB 100m (carrega automaticamente)"
+    description: "Harmonized Global Biomass"
   },
   {
     id: "esa-worldcover",
@@ -285,7 +285,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(160 60% 45%)",
     enabled: false,
     opacity: 75,
-    description: "Cobertura solo 10m (carrega automaticamente)"
+    description: "Cobertura do Solo ESA 10m"
   },
   {
     id: "ndvi",
@@ -308,64 +308,14 @@ export const defaultLayers: Layer[] = [
     description: "Temperatura superfície terrestre"
   },
   {
-    id: "ndwi-water",
-    name: "NDWI - Água",
+    id: "flood",
+    name: "Máscara de Inundação",
     category: "Análises",
     icon: Droplets,
     color: "hsl(210 85% 50%)",
     enabled: false,
-    opacity: 70,
-    description: "Detecção automática de corpos d'água (carrega ao ativar)"
-  },
-  {
-    id: "sar-backscatter",
-    name: "SAR Backscatter",
-    category: "Análises",
-    icon: Radar,
-    color: "hsl(200 80% 45%)",
-    enabled: false,
-    opacity: 70,
-    description: "Radar para detectar água sob nuvens (carrega ao ativar)"
-  },
-  {
-    id: "ndvi-vegetation",
-    name: "NDVI - Vegetação",
-    category: "Análises",
-    icon: Leaf,
-    color: "hsl(95 70% 45%)",
-    enabled: false,
-    opacity: 70,
-    description: "Análise de densidade vegetal (carrega ao ativar)"
-  },
-  {
-    id: "ndmi-moisture",
-    name: "NDMI - Umidade",
-    category: "Análises",
-    icon: Droplets,
-    color: "hsl(180 65% 45%)",
-    enabled: false,
-    opacity: 70,
-    description: "Umidade da vegetação (carrega ao ativar)"
-  },
-  {
-    id: "false-color-ir",
-    name: "Falsa Cor IR",
-    category: "Análises",
-    icon: Satellite,
-    color: "hsl(340 75% 55%)",
-    enabled: false,
-    opacity: 80,
-    description: "Infravermelho para análise visual (carrega ao ativar)"
-  },
-  {
-    id: "change-detection",
-    name: "Detecção de Mudanças",
-    category: "Análises",
-    icon: AlertTriangle,
-    color: "hsl(20 85% 55%)",
-    enabled: false,
-    opacity: 75,
-    description: "Mudanças temporais detectadas"
+    opacity: 65,
+    description: "Áreas inundadas detectadas"
   },
   {
     id: "risk",

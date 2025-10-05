@@ -6,7 +6,6 @@ import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { Layer } from "./LayerControl";
 import Sentinel1Search from "./Sentinel1Search";
 import PlanetarySearch from "./PlanetarySearch";
-import WaterAnalysis from "./WaterAnalysis";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Box, Cuboid } from "lucide-react";
@@ -27,18 +26,6 @@ interface SatelliteLayer {
   opacity?: number;
 }
 
-// Default AOI for Belém (large area covering the city)
-const DEFAULT_BELEM_AOI = {
-  type: "Polygon",
-  coordinates: [[
-    [-48.65, -1.55],  // NW
-    [-48.30, -1.55],  // NE
-    [-48.30, -1.25],  // SE
-    [-48.65, -1.25],  // SW
-    [-48.65, -1.55]   // Close polygon
-  ]]
-};
-
 const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -48,7 +35,6 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const [currentImageResult, setCurrentImageResult] = useState<any>(null);
   const [is3DMode, setIs3DMode] = useState(false);
   const [activeSearchType, setActiveSearchType] = useState<'sentinel1' | 'planetary'>('sentinel1');
-  const [autoLoadingLayer, setAutoLoadingLayer] = useState<string | null>(null);
 
   console.log("MapView render - mapLoaded:", mapLoaded);
 
@@ -341,48 +327,14 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     const hasGlobalBiomass = activeLayers.some(l => l.id === 'global-biomass');
     const hasESAWorldCover = activeLayers.some(l => l.id === 'esa-worldcover');
     
-    // New analysis layers
-    const hasNDWI = activeLayers.some(l => l.id === 'ndwi-water');
-    const hasSARWater = activeLayers.some(l => l.id === 'sar-backscatter');
-    const hasNDVI = activeLayers.some(l => l.id === 'ndvi-vegetation');
-    const hasNDMI = activeLayers.some(l => l.id === 'ndmi-moisture');
-    const hasFalseColor = activeLayers.some(l => l.id === 'false-color-ir');
-    
     let imageUrl = null;
     let opacity = 0.75;
     
     console.log("🔍 updateImageOverlay - result:", result);
-    console.log("🔍 Active layers:", { 
-      hasSentinel1VV, hasSentinel1VH, hasSentinel2, hasLandsat, hasDEM,
-      hasNDWI, hasSARWater, hasNDVI, hasNDMI, hasFalseColor 
-    });
+    console.log("🔍 Active layers:", { hasSentinel1VV, hasSentinel1VH, hasSentinel2, hasLandsat, hasDEM });
     
-    // Priority: Check for processed index tiles first
-    if (result.tileUrl && result.indexType) {
-      // This is a processed index result from process-water-index
-      // Use the tileUrl directly as it's already processed with correct colormap
-      imageUrl = result.tileUrl.replace('{z}/{x}/{y}', '12/1647/1845'); // Use a tile in the middle of Belém
-      
-      // Determine which layer is active and use its opacity
-      if (hasNDWI && result.indexType === 'ndwi') {
-        opacity = (activeLayers.find(l => l.id === 'ndwi-water')?.opacity || 70) / 100;
-        console.log("✅ Using NDWI index:", imageUrl);
-      } else if (hasSARWater && result.indexType === 'sar-water') {
-        opacity = (activeLayers.find(l => l.id === 'sar-backscatter')?.opacity || 70) / 100;
-        console.log("✅ Using SAR Water index:", imageUrl);
-      } else if (hasNDVI && result.indexType === 'ndvi') {
-        opacity = (activeLayers.find(l => l.id === 'ndvi-vegetation')?.opacity || 70) / 100;
-        console.log("✅ Using NDVI index:", imageUrl);
-      } else if (hasNDMI && result.indexType === 'ndmi') {
-        opacity = (activeLayers.find(l => l.id === 'ndmi-moisture')?.opacity || 70) / 100;
-        console.log("✅ Using NDMI index:", imageUrl);
-      } else if (hasFalseColor && result.indexType === 'false-color') {
-        opacity = (activeLayers.find(l => l.id === 'false-color-ir')?.opacity || 80) / 100;
-        console.log("✅ Using False Color IR:", imageUrl);
-      }
-    }
     // Priority: Sentinel-1 VV/VH composite, then individual polarizations
-    else if (hasSentinel1VV && hasSentinel1VH) {
+    if (hasSentinel1VV && hasSentinel1VH) {
       // Use rendered_preview which has proper SAS token
       imageUrl = result.assets?.rendered_preview?.href;
       opacity = Math.max(
@@ -587,104 +539,6 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
   }, [layers]);
 
-  // Auto-load data when analysis layers are toggled ON
-  useEffect(() => {
-    if (!mapLoaded) return;
-
-    const activeLayers = layers.filter(l => l.enabled);
-    
-    // Map layer IDs to their respective collections and index types
-    const analysisLayerMap: Record<string, { collection: string; indexType?: string }> = {
-      'ndwi-water': { collection: 'sentinel-2-l2a', indexType: 'ndwi' },
-      'sar-backscatter': { collection: 'sentinel-1-grd', indexType: 'sar-water' },
-      'ndvi-vegetation': { collection: 'sentinel-2-l2a', indexType: 'ndvi' },
-      'ndmi-moisture': { collection: 'sentinel-2-l2a', indexType: 'ndmi' },
-      'false-color-ir': { collection: 'sentinel-2-l2a', indexType: 'false-color' },
-      'modis-reflectance': { collection: 'modis-09Q1-061' },
-      'modis-vegetation': { collection: 'modis-13A1-061' },
-      'modis-biomass': { collection: 'modis-17A3HGF-061' },
-      'modis-temperature': { collection: 'modis-11A1-061' },
-      'global-biomass': { collection: 'hgb' },
-      'esa-worldcover': { collection: 'esa-worldcover' },
-    };
-
-    // Find newly enabled analysis layer
-    const newAnalysisLayer = activeLayers.find(l => 
-      analysisLayerMap[l.id] && l.id !== autoLoadingLayer
-    );
-
-    if (newAnalysisLayer) {
-      setAutoLoadingLayer(newAnalysisLayer.id);
-      autoLoadLayerData(newAnalysisLayer.id, analysisLayerMap[newAnalysisLayer.id]);
-    }
-  }, [layers, mapLoaded]);
-
-  const autoLoadLayerData = async (layerId: string, config: { collection: string; indexType?: string }) => {
-    try {
-      toast.info(`🔄 Carregando dados: ${layerId}`, {
-        description: 'Buscando imagens mais recentes...'
-      });
-
-      const { supabase } = await import("@/integrations/supabase/client");
-      const endDate = new Date().toISOString().split('T')[0];
-      const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-      if (config.indexType) {
-        // Use process-water-index for spectral indices
-        const { data, error } = await supabase.functions.invoke('process-water-index', {
-          body: {
-            aoi: DEFAULT_BELEM_AOI,
-            startDate,
-            endDate,
-            collection: config.collection,
-            indexType: config.indexType,
-            threshold: config.indexType === 'sar-water' ? -17 : 0.2
-          }
-        });
-
-        if (error) throw error;
-
-        if (data?.success && data.results.length > 0) {
-          // Load the most recent result
-          handleResultSelect(data.results[0]);
-          toast.success(`✅ ${layerId} carregado`, {
-            description: `${data.count} cena(s) disponível(is)`
-          });
-        } else {
-          toast.warning('Nenhum dado encontrado');
-        }
-      } else {
-        // Use regular search for non-index layers
-        const { data, error } = await supabase.functions.invoke('search-planetary-data', {
-          body: {
-            aoi: DEFAULT_BELEM_AOI,
-            startDate,
-            endDate,
-            collection: config.collection,
-            maxResults: 5
-          }
-        });
-
-        if (error) throw error;
-
-        if (data?.success && data.results.length > 0) {
-          handleResultSelect(data.results[0]);
-          toast.success(`✅ ${layerId} carregado`, {
-            description: `${data.count} cena(s) encontrada(s)`
-          });
-        } else {
-          toast.warning('Nenhum dado encontrado');
-        }
-      }
-    } catch (error: any) {
-      console.error('Erro ao auto-carregar camada:', error);
-      toast.error(`Erro ao carregar ${layerId}`, {
-        description: error.message
-      });
-    }
-  };
-
-
   const getActiveCollection = () => {
     const activeLayers = layers.filter(l => l.enabled);
     if (activeLayers.some(l => l.id === 'sentinel2')) return 'sentinel-2-l2a';
@@ -764,11 +618,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           onResultSelect={handleResultSelect} 
         />
       )}
-
-      {/* Water Analysis Component - Only show when AOI is manually drawn */}
-      {currentAOI && !autoLoadingLayer && (
-        <WaterAnalysis aoi={currentAOI} onResultSelect={handleResultSelect} />
-      )}
+      
       {/* Botões de controle */}
       <div className="absolute top-20 left-4 z-10 space-y-2">
         {currentAOI && (

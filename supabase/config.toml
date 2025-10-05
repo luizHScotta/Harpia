@@ -5,6 +5,3 @@ verify_jwt = false
 
 [functions.get-sentinel1-data]
 verify_jwt = false
-
-[functions.process-water-index]
-verify_jwt = false
