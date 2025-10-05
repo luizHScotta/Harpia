@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import nasaLogo from "@/assets/nasa-logo.jpeg";
+import nasaLogo from "@/assets/nasa-logo.png";
 import projectLogo from "@/assets/project-logo.png";
 
 interface HeaderProps {
