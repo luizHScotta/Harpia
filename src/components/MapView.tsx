@@ -199,6 +199,19 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     updateImageOverlay(currentImageResult, activeLayers);
   }, [layers, mapLoaded, currentAOI, currentImageResult]);
 
+  // Handle IBGE municipalities layer
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+
+    const vulnerableLayer = layers.find(l => l.id === 'vulnerable-communities');
+    
+    if (vulnerableLayer?.enabled) {
+      loadIBGEMunicipalities(vulnerableLayer.opacity);
+    } else {
+      removeIBGELayer();
+    }
+  }, [layers, mapLoaded]);
+
   const clearAllPolygons = () => {
     if (draw.current) {
       draw.current.deleteAll();
@@ -236,6 +249,114 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
     
     console.log("🗑️ All image overlays removed");
+  };
+
+  const loadIBGEMunicipalities = async (opacity: number = 65) => {
+    if (!map.current) return;
+
+    const mapInstance = map.current;
+    
+    try {
+      toast.loading("Carregando municípios do IBGE...");
+      
+      // Call edge function to get IBGE data
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-ibge-municipalities`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ state: 'PA' }) // Pará state
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Erro ao carregar dados do IBGE');
+      }
+
+      const { data: geoJson } = await response.json();
+      
+      // Remove old layer if exists
+      removeIBGELayer();
+
+      // Add source
+      mapInstance.addSource('ibge-municipalities', {
+        type: 'geojson',
+        data: geoJson
+      });
+
+      // Add fill layer
+      mapInstance.addLayer({
+        id: 'ibge-municipalities-fill',
+        type: 'fill',
+        source: 'ibge-municipalities',
+        paint: {
+          'fill-color': 'hsl(280 65% 60%)',
+          'fill-opacity': opacity / 100
+        }
+      });
+
+      // Add outline layer
+      mapInstance.addLayer({
+        id: 'ibge-municipalities-outline',
+        type: 'line',
+        source: 'ibge-municipalities',
+        paint: {
+          'line-color': 'hsl(280 65% 45%)',
+          'line-width': 2
+        }
+      });
+
+      // Add click handler
+      mapInstance.on('click', 'ibge-municipalities-fill', (e) => {
+        if (e.features && e.features[0]) {
+          const props = e.features[0].properties;
+          onFeatureClick({
+            name: props.nome || 'Município',
+            microrregiao: props.microrregiao,
+            mesorregiao: props.mesorregiao,
+            regiao: props.regiao,
+            id: props.id
+          });
+        }
+      });
+
+      // Change cursor on hover
+      mapInstance.on('mouseenter', 'ibge-municipalities-fill', () => {
+        mapInstance.getCanvas().style.cursor = 'pointer';
+      });
+
+      mapInstance.on('mouseleave', 'ibge-municipalities-fill', () => {
+        mapInstance.getCanvas().style.cursor = '';
+      });
+
+      toast.success("Municípios carregados com sucesso");
+      
+    } catch (error) {
+      console.error('Erro ao carregar IBGE:', error);
+      toast.error("Erro ao carregar municípios");
+    }
+  };
+
+  const removeIBGELayer = () => {
+    if (!map.current) return;
+    
+    const mapInstance = map.current;
+    
+    try {
+      if (mapInstance.getLayer('ibge-municipalities-fill')) {
+        mapInstance.removeLayer('ibge-municipalities-fill');
+      }
+      if (mapInstance.getLayer('ibge-municipalities-outline')) {
+        mapInstance.removeLayer('ibge-municipalities-outline');
+      }
+      if (mapInstance.getSource('ibge-municipalities')) {
+        mapInstance.removeSource('ibge-municipalities');
+      }
+    } catch (e) {
+      console.error('Erro ao remover camada IBGE:', e);
+    }
   };
 
   const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0) => {
