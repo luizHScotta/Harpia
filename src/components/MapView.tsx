@@ -29,6 +29,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   const draw = useRef<MapboxDraw | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentAOI, setCurrentAOI] = useState<any>(null);
+  const [currentImageResult, setCurrentImageResult] = useState<any>(null);
 
   console.log("MapView render - mapLoaded:", mapLoaded);
 
@@ -88,6 +89,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         console.log("AOI updated:", polygon.geometry);
       } else {
         setCurrentAOI(null);
+        // Remove image overlay when polygon is deleted
+        removeImageOverlay();
       }
     }
 
@@ -173,115 +176,154 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     };
   }, []);
 
-  // Update layer visibility and opacity
+  // Update layer visibility and opacity based on selected layers
   useEffect(() => {
-    if (!mapLoaded || !map.current) return;
+    if (!mapLoaded || !map.current || !currentAOI || !currentImageResult) return;
 
-    // This is where you would update actual layer visibility
-    // For now, just logging the active layers
     const activeLayers = layers.filter(l => l.enabled);
     console.log("Active layers:", activeLayers.map(l => l.name));
     
-    // In a real implementation, you would:
-    // 1. Load raster tiles from your COG storage
-    // 2. Load vector tiles from your TileServer
-    // 3. Update layer opacity based on slider values
-  }, [layers, mapLoaded]);
+    // Update image based on active layers
+    updateImageOverlay(currentImageResult, activeLayers);
+  }, [layers, mapLoaded, currentAOI, currentImageResult]);
 
-  const handleResultSelect = async (result: any) => {
-    console.log("🎯 Adding SAR image OVERLAY on top of base map");
-    console.log("Selected result:", result);
+  const removeImageOverlay = () => {
+    if (!map.current) return;
+    
+    const mapInstance = map.current;
+    const layerId = `sar-overlay`;
+    const sourceId = `${layerId}-source`;
+    
+    try {
+      if (mapInstance.getLayer(layerId)) {
+        mapInstance.removeLayer(layerId);
+      }
+      if (mapInstance.getSource(sourceId)) {
+        mapInstance.removeSource(sourceId);
+      }
+      console.log("🗑️ Image overlay removed");
+    } catch (e) {
+      console.log("No overlay to remove");
+    }
+  };
 
-    // Wait for map to be fully loaded
-    if (!map.current || !mapLoaded) {
-      console.error("⚠️ Map not ready yet");
-      toast.error("Aguarde o mapa carregar");
+  const updateImageOverlay = async (result: any, activeLayers: Layer[]) => {
+    if (!map.current || !result) return;
+    
+    const mapInstance = map.current;
+    
+    // Determine which image to load based on active layers
+    const hasSentinel1VV = activeLayers.some(l => l.id === 'sentinel1-vv');
+    const hasSentinel1VH = activeLayers.some(l => l.id === 'sentinel1-vh');
+    const hasSentinel2 = activeLayers.some(l => l.id === 'sentinel2');
+    
+    let imageUrl = null;
+    let opacity = 0.75;
+    
+    // Priority: Sentinel-1 VV/VH composite, then individual polarizations
+    if (hasSentinel1VV && hasSentinel1VH) {
+      // Use false-color composite (VV, VH)
+      imageUrl = result.assets?.rendered_preview?.href;
+      opacity = Math.max(
+        activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100,
+        activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100
+      ) / 100;
+    } else if (hasSentinel1VV) {
+      // Use VV polarization
+      imageUrl = result.assets?.vv?.href || result.assets?.rendered_preview?.href;
+      opacity = (activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100) / 100;
+    } else if (hasSentinel1VH) {
+      // Use VH polarization
+      imageUrl = result.assets?.vh?.href || result.assets?.rendered_preview?.href;
+      opacity = (activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
+    } else if (hasSentinel2) {
+      // For Sentinel-2, we would need to fetch from a different collection
+      // For now, show a message
+      toast.info("Sentinel-2 ainda não implementado", {
+        description: "Use as camadas Sentinel-1 para visualizar dados SAR"
+      });
+      removeImageOverlay();
+      return;
+    } else {
+      // No relevant layers enabled, remove overlay
+      removeImageOverlay();
+      return;
+    }
+    
+    if (!imageUrl) {
+      console.error("No image URL available");
       return;
     }
 
+    const layerId = `sar-overlay`;
+    const sourceId = `${layerId}-source`;
+    
     try {
-      const mapInstance = map.current;
-      
-      // Verify map is still valid
-      if (!mapInstance.getStyle()) {
-        console.error("⚠️ Map style not loaded");
-        return;
+      // Remove old overlay if exists
+      if (mapInstance.getLayer(layerId)) {
+        mapInstance.removeLayer(layerId);
       }
-      
-      // Use the rendered preview image URL directly from Planetary Computer
-      const previewUrl = result.assets?.rendered_preview?.href || 
-                        result.assets?.thumbnail?.href;
-      
-      if (!previewUrl) {
-        throw new Error("No preview image available for this item");
+      if (mapInstance.getSource(sourceId)) {
+        mapInstance.removeSource(sourceId);
       }
 
-      console.log("📷 Preview image URL:", previewUrl);
-
-      const layerId = `sar-overlay`;
-      const sourceId = `${layerId}-source`;
-      
-      // Remove old overlay if exists (keeping base map intact)
-      try {
-        if (mapInstance.getLayer(layerId)) {
-          console.log("🗑️ Removing old overlay layer");
-          mapInstance.removeLayer(layerId);
-        }
-      } catch (e) {
-        console.log("No existing layer to remove");
-      }
-      
-      try {
-        if (mapInstance.getSource(sourceId)) {
-          mapInstance.removeSource(sourceId);
-        }
-      } catch (e) {
-        console.log("No existing source to remove");
-      }
-
-      // Get the bbox coordinates [west, south, east, north]
       const [west, south, east, north] = result.bbox;
       
-      console.log("📍 Image bounds:", { west, south, east, north });
-      
-      // Add image source - this will be an OVERLAY on top of the base map
+      // Add image source
       mapInstance.addSource(sourceId, {
         type: 'image',
-        url: previewUrl,
+        url: imageUrl,
         coordinates: [
-          [west, north],  // top-left
-          [east, north],  // top-right
-          [east, south],  // bottom-right
-          [west, south]   // bottom-left
+          [west, north],
+          [east, north],
+          [east, south],
+          [west, south]
         ]
       });
 
-      // Add raster layer ON TOP of the base map
-      // The base map (mapbox://styles/mapbox/dark-v11) stays underneath
+      // Add raster layer with dynamic opacity
       mapInstance.addLayer({
         id: layerId,
         type: 'raster',
         source: sourceId,
         paint: {
-          'raster-opacity': 0.75, // Semi-transparent so base map shows through
+          'raster-opacity': opacity,
           'raster-fade-duration': 300
         }
       });
 
-      console.log("✅ SAR overlay layer added on top of base map:", layerId);
-      console.log("🗺️ Base map remains visible underneath");
+      console.log(`✅ Image overlay updated - opacity: ${opacity}`);
+      
+    } catch (error) {
+      console.error("❌ Error updating image overlay:", error);
+    }
+  };
 
-      // Fit map to image bounds (keeping base map visible)
-      mapInstance.fitBounds([[west, south], [east, north]], {
+  const handleResultSelect = async (result: any) => {
+    console.log("🎯 Selected SAR result:", result);
+
+    if (!map.current || !mapLoaded) {
+      toast.error("Aguarde o mapa carregar");
+      return;
+    }
+
+    try {
+      setCurrentImageResult(result);
+      
+      const activeLayers = layers.filter(l => l.enabled);
+      await updateImageOverlay(result, activeLayers);
+
+      // Fit map to image bounds
+      const [west, south, east, north] = result.bbox;
+      map.current.fitBounds([[west, south], [east, north]], {
         padding: 50,
         duration: 1000
       });
 
-      toast.success("Imagem SAR sobreposta ao mapa", {
-        description: `Sentinel-1 ${result.platform} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
+      toast.success("Imagem carregada", {
+        description: `${result.collection} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
       });
 
-      // Show result info
       onFeatureClick({
         name: result.id,
         date: new Date(result.datetime).toLocaleDateString('pt-BR'),
@@ -292,10 +334,8 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       });
       
     } catch (error) {
-      console.error("❌ Error loading SAR overlay:", error);
-      toast.error("Erro ao carregar imagem", {
-        description: error instanceof Error ? error.message : "Não foi possível carregar a imagem"
-      });
+      console.error("❌ Error loading image:", error);
+      toast.error("Erro ao carregar imagem");
     }
   };
 
