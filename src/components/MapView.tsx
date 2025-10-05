@@ -428,8 +428,8 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       opacity = (activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
       console.log("✅ Using VH polarization:", imageUrl);
     } else if (hasSentinel2 && collection === 'sentinel-2-l2a') {
-      // Sentinel-2 True Color
-      imageUrl = result.assets?.visual?.href || result.assets?.rendered_preview?.href;
+      // Sentinel-2 True Color - usar sempre Planetary Computer API
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=sentinel-2-l2a&item=${result.id}&assets=visual&format=png`;
       opacity = (activeLayers.find(l => l.id === 'sentinel2')?.opacity || 80) / 100;
       console.log("✅ Using Sentinel-2:", imageUrl);
     } else if (hasLandsat && collection === 'landsat-c2-l2') {
@@ -453,8 +453,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       opacity = (activeLayers.find(l => l.id === 'alosdem')?.opacity || 70) / 100;
       console.log("✅ Using ALOS DEM:", imageUrl);
     } else if (hasMODISReflectance && collection === 'modis-09Q1-061') {
-      imageUrl = result.assets?.rendered_preview?.href || 
-                 `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-09Q1-061&item=${result.id}&assets=sur_refl_b01&assets=sur_refl_b02&colormap=viridis&format=png`;
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-09Q1-061&item=${result.id}&assets=sur_refl_b01&assets=sur_refl_b02&colormap=viridis&format=png`;
       opacity = (activeLayers.find(l => l.id === 'modis-reflectance')?.opacity || 80) / 100;
       console.log("✅ Using MODIS Reflectance:", imageUrl);
     } else if (hasMODISVegetation && collection === 'modis-13A1-061') {
@@ -474,7 +473,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       opacity = (activeLayers.find(l => l.id === 'global-biomass')?.opacity || 70) / 100;
       console.log("✅ Using Global Biomass:", imageUrl);
     } else if (hasESAWorldCover && collection === 'esa-worldcover') {
-      imageUrl = result.assets?.map?.href || result.assets?.rendered_preview?.href;
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=esa-worldcover&item=${result.id}&assets=map&format=png`;
       opacity = (activeLayers.find(l => l.id === 'esa-worldcover')?.opacity || 75) / 100;
       console.log("✅ Using ESA WorldCover:", imageUrl);
     } else {
