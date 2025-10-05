@@ -43,134 +43,148 @@ const MapView = ({
   console.log("MapView render - mapLoaded:", mapLoaded);
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
+    
+    console.log("🗺️ Inicializando Mapbox...");
     mapboxgl.accessToken = MAPBOX_TOKEN;
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [-48.5044, -1.4558],
-      // Belém coordinates
-      zoom: 11,
-      pitch: 0,
-      antialias: true // Melhor qualidade 3D
-    });
-    console.log("Mapbox map initialized");
+    
+    try {
+      map.current = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [-48.5044, -1.4558],
+        zoom: 11,
+        pitch: 0,
+        antialias: true
+      });
+      
+      console.log("✅ Mapbox map criado");
 
-    // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl({
-      visualizePitch: true
-    }), "top-right");
+      // Add navigation controls
+      map.current.addControl(new mapboxgl.NavigationControl({
+        visualizePitch: true
+      }), "top-right");
 
-    // Add scale control
-    map.current.addControl(new mapboxgl.ScaleControl({
-      maxWidth: 100,
-      unit: "metric"
-    }), "bottom-right");
+      // Add scale control
+      map.current.addControl(new mapboxgl.ScaleControl({
+        maxWidth: 100,
+        unit: "metric"
+      }), "bottom-right");
 
-    // Add drawing controls
-    draw.current = new MapboxDraw({
-      displayControlsDefault: false,
-      controls: {
-        polygon: true,
-        trash: false // Desabilitar botão trash padrão, vamos criar o nosso
-      },
-      defaultMode: 'simple_select'
-    });
-    map.current.addControl(draw.current, "top-left");
+      // Add drawing controls
+      draw.current = new MapboxDraw({
+        displayControlsDefault: false,
+        controls: {
+          polygon: true,
+          trash: false
+        },
+        defaultMode: 'simple_select'
+      });
+      map.current.addControl(draw.current, "top-left");
 
-    // Listen to draw events
-    map.current.on('draw.create', updateArea);
-    map.current.on('draw.delete', updateArea);
-    map.current.on('draw.update', updateArea);
-    function updateArea() {
-      const data = draw.current?.getAll();
-      if (data && data.features.length > 0) {
-        // Manter apenas o polígono mais recente
-        if (data.features.length > 1) {
-          const latestFeature = data.features[data.features.length - 1];
-          // Deletar todos os polígonos anteriores
-          data.features.slice(0, -1).forEach(feature => {
-            draw.current?.delete(feature.id as string);
-          });
-          setCurrentAOI(latestFeature.geometry);
-          onAOIChange(latestFeature.geometry);
-          console.log("AOI updated (latest only):", latestFeature.geometry);
+      // Listen to draw events
+      map.current.on('draw.create', updateArea);
+      map.current.on('draw.delete', updateArea);
+      map.current.on('draw.update', updateArea);
+      
+      function updateArea() {
+        const data = draw.current?.getAll();
+        if (data && data.features.length > 0) {
+          if (data.features.length > 1) {
+            const latestFeature = data.features[data.features.length - 1];
+            data.features.slice(0, -1).forEach(feature => {
+              draw.current?.delete(feature.id as string);
+            });
+            setCurrentAOI(latestFeature.geometry);
+            onAOIChange(latestFeature.geometry);
+            console.log("📍 AOI updated (latest only):", latestFeature.geometry);
+          } else {
+            const polygon = data.features[0];
+            setCurrentAOI(polygon.geometry);
+            onAOIChange(polygon.geometry);
+            console.log("📍 AOI updated:", polygon.geometry);
+          }
         } else {
-          const polygon = data.features[0];
-          setCurrentAOI(polygon.geometry);
-          onAOIChange(polygon.geometry);
-          console.log("AOI updated:", polygon.geometry);
+          setCurrentAOI(null);
+          onAOIChange(null);
+          removeImageOverlay();
         }
-      } else {
-        setCurrentAOI(null);
-        onAOIChange(null);
-        // Remove image overlay when polygon is deleted
-        removeImageOverlay();
       }
+      
+      map.current.on("load", () => {
+        console.log("✅ Mapbox map carregado completamente");
+        setMapLoaded(true);
+
+        if (map.current) {
+          // Add example polygon for Belém baixadas
+          map.current.addSource("belem-areas", {
+            type: "geojson",
+            data: {
+              type: "FeatureCollection",
+              features: [{
+                type: "Feature",
+                properties: {
+                  name: "Região da Baixada - Fazendinha",
+                  population: 45000,
+                  floodRisk: "Alto",
+                  avgNDVI: 0.35,
+                  avgLST: 32.5,
+                  sanitation: 45
+                },
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [[[-48.52, -1.47], [-48.49, -1.47], [-48.49, -1.44], [-48.52, -1.44], [-48.52, -1.47]]]
+                }
+              }]
+            }
+          });
+          
+          map.current.addLayer({
+            id: "belem-areas-fill",
+            type: "fill",
+            source: "belem-areas",
+            paint: {
+              "fill-color": "#1eb8b8",
+              "fill-opacity": 0.2
+            }
+          });
+          
+          map.current.addLayer({
+            id: "belem-areas-outline",
+            type: "line",
+            source: "belem-areas",
+            paint: {
+              "line-color": "#1eb8b8",
+              "line-width": 2
+            }
+          });
+
+          map.current.on("click", "belem-areas-fill", e => {
+            if (e.features && e.features[0]) {
+              onFeatureClick(e.features[0].properties);
+            }
+          });
+
+          map.current.on("mouseenter", "belem-areas-fill", () => {
+            if (map.current) map.current.getCanvas().style.cursor = "pointer";
+          });
+          
+          map.current.on("mouseleave", "belem-areas-fill", () => {
+            if (map.current) map.current.getCanvas().style.cursor = "";
+          });
+        }
+      });
+      
+      map.current.on("error", (e) => {
+        console.error("❌ Mapbox error:", e);
+      });
+      
+    } catch (error) {
+      console.error("❌ Erro ao inicializar mapa:", error);
+      toast.error("Erro ao carregar o mapa");
     }
-    map.current.on("load", () => {
-      console.log("Mapbox map loaded successfully");
-      setMapLoaded(true);
-
-      // Add example polygon for Belém baixadas
-      if (map.current) {
-        // Example: Área da Cidade de Deus / Fazendinha
-        map.current.addSource("belem-areas", {
-          type: "geojson",
-          data: {
-            type: "FeatureCollection",
-            features: [{
-              type: "Feature",
-              properties: {
-                name: "Região da Baixada - Fazendinha",
-                population: 45000,
-                floodRisk: "Alto",
-                avgNDVI: 0.35,
-                avgLST: 32.5,
-                sanitation: 45
-              },
-              geometry: {
-                type: "Polygon",
-                coordinates: [[[-48.52, -1.47], [-48.49, -1.47], [-48.49, -1.44], [-48.52, -1.44], [-48.52, -1.47]]]
-              }
-            }]
-          }
-        });
-        map.current.addLayer({
-          id: "belem-areas-fill",
-          type: "fill",
-          source: "belem-areas",
-          paint: {
-            "fill-color": "hsl(165 65% 45%)",
-            "fill-opacity": 0.2
-          }
-        });
-        map.current.addLayer({
-          id: "belem-areas-outline",
-          type: "line",
-          source: "belem-areas",
-          paint: {
-            "line-color": "hsl(165 65% 45%)",
-            "line-width": 2
-          }
-        });
-
-        // Click handler
-        map.current.on("click", "belem-areas-fill", e => {
-          if (e.features && e.features[0]) {
-            onFeatureClick(e.features[0].properties);
-          }
-        });
-
-        // Change cursor on hover
-        map.current.on("mouseenter", "belem-areas-fill", () => {
-          if (map.current) map.current.getCanvas().style.cursor = "pointer";
-        });
-        map.current.on("mouseleave", "belem-areas-fill", () => {
-          if (map.current) map.current.getCanvas().style.cursor = "";
-        });
-      }
-    });
+    
     return () => {
+      console.log("🧹 Limpando mapa...");
       map.current?.remove();
     };
   }, []);
@@ -194,9 +208,14 @@ const MapView = ({
     }
   };
   const toggle3DMode = () => {
-    if (!map.current) return;
+    if (!map.current || !mapLoaded) {
+      toast.error("Aguarde o mapa carregar completamente");
+      return;
+    }
+    
     const newMode = !is3DMode;
     setIs3DMode(newMode);
+    
     if (newMode) {
       // Ativar 3D com terreno
       map.current.easeTo({
@@ -206,140 +225,158 @@ const MapView = ({
       });
 
       // Adicionar fonte de terreno DEM se não existir
-      if (!map.current.getSource('mapbox-dem')) {
-        map.current.addSource('mapbox-dem', {
-          'type': 'raster-dem',
-          'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
-          'tileSize': 512,
-          'maxzoom': 14
-        });
-
-        // Configurar terreno 3D com exageração
-        map.current.setTerrain({
-          'source': 'mapbox-dem',
-          'exaggeration': 2.5
-        });
-
-        // Adicionar camada de elevação colorida (vermelho=baixo, amarelo=médio, azul=alto)
-        map.current.addLayer({
-          'id': 'hillshade',
-          'type': 'hillshade',
-          'source': 'mapbox-dem',
-          'paint': {
-            'hillshade-exaggeration': 0.8,
-            'hillshade-shadow-color': '#000000',
-            'hillshade-highlight-color': '#ffffff'
-          }
-        }, 'belem-areas-fill');
-
-        // Adicionar modelos 3D de edifícios
-        const layers = map.current.getStyle().layers;
-        const labelLayerId = layers.find(
-          (layer) => layer.type === 'symbol' && layer.layout && layer.layout['text-field']
-        )?.id;
-
-        if (!map.current.getLayer('3d-buildings')) {
-          map.current.addLayer({
-            'id': '3d-buildings',
-            'source': 'composite',
-            'source-layer': 'building',
-            'filter': ['==', 'extrude', 'true'],
-            'type': 'fill-extrusion',
-            'minzoom': 15,
-            'paint': {
-              'fill-extrusion-color': [
-                'interpolate',
-                ['linear'],
-                ['get', 'height'],
-                0, 'hsl(0, 70%, 50%)',      // Vermelho para baixo
-                15, 'hsl(45, 85%, 55%)',    // Amarelo para médio
-                30, 'hsl(210, 75%, 55%)'    // Azul para alto
-              ],
-              'fill-extrusion-height': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                15, 0,
-                15.05, ['get', 'height']
-              ],
-              'fill-extrusion-base': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                15, 0,
-                15.05, ['get', 'min_height']
-              ],
-              'fill-extrusion-opacity': 0.6
-            }
-          }, labelLayerId);
-        }
-
-        // Adicionar camada NASA GIBS (exemplo: MODIS Terra True Color)
-        if (!map.current.getSource('nasa-gibs-modis')) {
-          const today = new Date();
-          const dateStr = today.toISOString().split('T')[0];
-          
-          map.current.addSource('nasa-gibs-modis', {
-            'type': 'raster',
-            'tiles': [
-              `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${dateStr}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`
-            ],
-            'tileSize': 256,
-            'attribution': 'NASA GIBS'
+      try {
+        const hasSource = map.current.getSource('mapbox-dem');
+        if (!hasSource) {
+          map.current.addSource('mapbox-dem', {
+            'type': 'raster-dem',
+            'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+            'tileSize': 512,
+            'maxzoom': 14
           });
 
-          map.current.addLayer({
-            'id': 'nasa-gibs-layer',
-            'type': 'raster',
-            'source': 'nasa-gibs-modis',
-            'paint': {
-              'raster-opacity': 0
-            }
-          }, 'belem-areas-fill');
-        }
+          // Configurar terreno 3D com exageração
+          map.current.setTerrain({
+            'source': 'mapbox-dem',
+            'exaggeration': 2.5
+          });
 
-        // Adicionar sky layer para efeito atmosférico
-        map.current.addLayer({
-          'id': 'sky',
-          'type': 'sky',
-          'paint': {
-            'sky-type': 'atmosphere',
-            'sky-atmosphere-sun': [0.0, 90.0],
-            'sky-atmosphere-sun-intensity': 15
+          // Adicionar camada de elevação colorida
+          const hasHillshade = map.current.getLayer('hillshade');
+          if (!hasHillshade) {
+            map.current.addLayer({
+              'id': 'hillshade',
+              'type': 'hillshade',
+              'source': 'mapbox-dem',
+              'paint': {
+                'hillshade-exaggeration': 0.8,
+                'hillshade-shadow-color': '#000000',
+                'hillshade-highlight-color': '#ffffff'
+              }
+            });
           }
+
+          // Adicionar modelos 3D de edifícios
+          const layers = map.current.getStyle().layers;
+          const labelLayerId = layers?.find(
+            (layer) => layer.type === 'symbol' && layer.layout && layer.layout['text-field']
+          )?.id;
+
+          const has3DBuildings = map.current.getLayer('3d-buildings');
+          if (!has3DBuildings) {
+            map.current.addLayer({
+              'id': '3d-buildings',
+              'source': 'composite',
+              'source-layer': 'building',
+              'filter': ['==', 'extrude', 'true'],
+              'type': 'fill-extrusion',
+              'minzoom': 15,
+              'paint': {
+                'fill-extrusion-color': [
+                  'interpolate',
+                  ['linear'],
+                  ['get', 'height'],
+                  0, 'hsl(0, 70%, 50%)',
+                  15, 'hsl(45, 85%, 55%)',
+                  30, 'hsl(210, 75%, 55%)'
+                ],
+                'fill-extrusion-height': [
+                  'interpolate',
+                  ['linear'],
+                  ['zoom'],
+                  15, 0,
+                  15.05, ['get', 'height']
+                ],
+                'fill-extrusion-base': [
+                  'interpolate',
+                  ['linear'],
+                  ['zoom'],
+                  15, 0,
+                  15.05, ['get', 'min_height']
+                ],
+                'fill-extrusion-opacity': 0.6
+              }
+            }, labelLayerId);
+          }
+
+          // Adicionar camada NASA GIBS
+          const hasGIBS = map.current.getSource('nasa-gibs-modis');
+          if (!hasGIBS) {
+            const today = new Date();
+            const dateStr = today.toISOString().split('T')[0];
+            
+            map.current.addSource('nasa-gibs-modis', {
+              'type': 'raster',
+              'tiles': [
+                `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${dateStr}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`
+              ],
+              'tileSize': 256,
+              'attribution': 'NASA GIBS'
+            });
+
+            map.current.addLayer({
+              'id': 'nasa-gibs-layer',
+              'type': 'raster',
+              'source': 'nasa-gibs-modis',
+              'paint': {
+                'raster-opacity': 0
+              }
+            });
+          }
+
+          // Adicionar sky layer
+          const hasSky = map.current.getLayer('sky');
+          if (!hasSky) {
+            map.current.addLayer({
+              'id': 'sky',
+              'type': 'sky',
+              'paint': {
+                'sky-type': 'atmosphere',
+                'sky-atmosphere-sun': [0.0, 90.0],
+                'sky-atmosphere-sun-intensity': 15
+              }
+            });
+          }
+        } else {
+          map.current.setTerrain({
+            'source': 'mapbox-dem',
+            'exaggeration': 2.5
+          });
+        }
+        
+        toast.success("Modo 3D ativado", {
+          description: "Terreno com elevação colorida e modelos 3D"
         });
-      } else {
-        map.current.setTerrain({
-          'source': 'mapbox-dem',
-          'exaggeration': 2.5
-        });
+      } catch (error) {
+        console.error('Erro ao ativar 3D:', error);
+        toast.error("Erro ao ativar modo 3D");
       }
-      
-      toast.success("Modo 3D ativado", {
-        description: "Terreno com elevação colorida e modelos 3D"
-      });
     } else {
       // Voltar para 2D
-      map.current.easeTo({
-        pitch: 0,
-        bearing: 0,
-        duration: 1500
-      });
+      try {
+        map.current.easeTo({
+          pitch: 0,
+          bearing: 0,
+          duration: 1500
+        });
 
-      // Remover terreno 3D e camadas associadas
-      map.current.setTerrain(null);
-      
-      if (map.current.getLayer('hillshade')) {
-        map.current.removeLayer('hillshade');
+        map.current.setTerrain(null);
+        
+        if (map.current.getLayer('hillshade')) {
+          map.current.removeLayer('hillshade');
+        }
+        if (map.current.getLayer('3d-buildings')) {
+          map.current.removeLayer('3d-buildings');
+        }
+        if (map.current.getLayer('sky')) {
+          map.current.removeLayer('sky');
+        }
+        
+        toast.success("Modo 2D ativado");
+      } catch (error) {
+        console.error('Erro ao desativar 3D:', error);
+        toast.error("Erro ao desativar modo 3D");
       }
-      if (map.current.getLayer('3d-buildings')) {
-        map.current.removeLayer('3d-buildings');
-      }
-      if (map.current.getLayer('sky')) {
-        map.current.removeLayer('sky');
-      }
-      
-      toast.success("Modo 2D ativado");
     }
   };
   const removeImageOverlay = () => {
