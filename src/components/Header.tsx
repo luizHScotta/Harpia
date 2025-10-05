@@ -1,4 +1,4 @@
-import { Satellite, Menu, Sun, Moon, Settings, PanelRightClose } from "lucide-react";
+import { Menu, Sun, Moon, Settings, PanelRightClose } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTheme } from "next-themes";
@@ -11,6 +11,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import nasaLogo from "@/assets/nasa-logo.jpeg";
+import projectLogo from "@/assets/project-logo.jpeg";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -34,7 +36,10 @@ const Header = ({ onToggleSidebar, onExport, onToggleInfoPanel }: HeaderProps) =
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <Satellite className="h-6 w-6 text-primary" />
+        <div className="flex items-center gap-2">
+          <img src={nasaLogo} alt="NASA Logo" className="h-10 w-10 object-contain" />
+          <img src={projectLogo} alt="Project Logo" className="h-10 w-10 object-contain" />
+        </div>
         <div>
           <h1 className="text-xl font-bold text-foreground">
             {t("header.title")}
