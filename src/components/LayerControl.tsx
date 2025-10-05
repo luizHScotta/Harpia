@@ -235,7 +235,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(140 60% 45%)",
     enabled: false,
     opacity: 80,
-    description: "MODIS 250m Reflectância"
+    description: "MODIS 250m (carrega automaticamente)"
   },
   {
     id: "modis-vegetation",
@@ -245,7 +245,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(100 65% 45%)",
     enabled: false,
     opacity: 75,
-    description: "MODIS Índice de Vegetação"
+    description: "Índice NDVI MODIS (carrega automaticamente)"
   },
   {
     id: "modis-biomass",
@@ -255,7 +255,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(90 60% 40%)",
     enabled: false,
     opacity: 70,
-    description: "MODIS Produtividade Primária"
+    description: "Produtividade primária (carrega automaticamente)"
   },
   {
     id: "modis-temperature",
@@ -265,7 +265,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(20 80% 50%)",
     enabled: false,
     opacity: 65,
-    description: "MODIS Temperatura Superfície"
+    description: "Temperatura superfície (carrega automaticamente)"
   },
   {
     id: "global-biomass",
@@ -275,7 +275,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(85 55% 45%)",
     enabled: false,
     opacity: 70,
-    description: "Harmonized Global Biomass"
+    description: "HGB 100m (carrega automaticamente)"
   },
   {
     id: "esa-worldcover",
@@ -285,7 +285,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(160 60% 45%)",
     enabled: false,
     opacity: 75,
-    description: "Cobertura do Solo ESA 10m"
+    description: "Cobertura solo 10m (carrega automaticamente)"
   },
   {
     id: "ndvi",
@@ -315,7 +315,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(210 85% 50%)",
     enabled: false,
     opacity: 70,
-    description: "Índice de água normalizado"
+    description: "Detecção automática de corpos d'água (carrega ao ativar)"
   },
   {
     id: "sar-backscatter",
@@ -325,7 +325,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(200 80% 45%)",
     enabled: false,
     opacity: 70,
-    description: "Retorno do sinal radar"
+    description: "Radar para detectar água sob nuvens (carrega ao ativar)"
   },
   {
     id: "ndvi-vegetation",
@@ -335,7 +335,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(95 70% 45%)",
     enabled: false,
     opacity: 70,
-    description: "Índice de vegetação"
+    description: "Análise de densidade vegetal (carrega ao ativar)"
   },
   {
     id: "ndmi-moisture",
@@ -345,7 +345,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(180 65% 45%)",
     enabled: false,
     opacity: 70,
-    description: "Índice de umidade da vegetação"
+    description: "Umidade da vegetação (carrega ao ativar)"
   },
   {
     id: "false-color-ir",
@@ -355,7 +355,7 @@ export const defaultLayers: Layer[] = [
     color: "hsl(340 75% 55%)",
     enabled: false,
     opacity: 80,
-    description: "Visualização infravermelho"
+    description: "Infravermelho para análise visual (carrega ao ativar)"
   },
   {
     id: "change-detection",
