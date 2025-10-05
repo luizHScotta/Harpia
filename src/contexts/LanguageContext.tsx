@@ -19,6 +19,7 @@ const translations = {
     "header.language": "Language",
     "header.english": "English",
     "header.portuguese": "Portuguese",
+    "header.toggleInfoPanel": "Toggle Info Panel",
     
     "layers.title": "Data Layers",
     "layers.subtitle": "Select layers to display on the map",
@@ -137,6 +138,7 @@ const translations = {
     "header.language": "Idioma",
     "header.english": "Inglês",
     "header.portuguese": "Português",
+    "header.toggleInfoPanel": "Alternar Painel de Informações",
     
     "layers.title": "Camadas de Dados",
     "layers.subtitle": "Selecione as camadas para visualizar no mapa",

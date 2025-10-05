@@ -1,4 +1,4 @@
-import { Satellite, Menu, Sun, Moon, Settings } from "lucide-react";
+import { Satellite, Menu, Sun, Moon, Settings, PanelRightClose } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTheme } from "next-themes";
@@ -15,9 +15,10 @@ import {
 interface HeaderProps {
   onToggleSidebar: () => void;
   onExport: () => void;
+  onToggleInfoPanel: () => void;
 }
 
-const Header = ({ onToggleSidebar, onExport }: HeaderProps) => {
+const Header = ({ onToggleSidebar, onExport, onToggleInfoPanel }: HeaderProps) => {
   const { theme, setTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const isDark = theme === "dark";
@@ -44,6 +45,16 @@ const Header = ({ onToggleSidebar, onExport }: HeaderProps) => {
         </div>
       </div>
       <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onToggleInfoPanel}
+          title={t("header.toggleInfoPanel")}
+          className="hover:bg-muted"
+        >
+          <PanelRightClose className="h-5 w-5" />
+        </Button>
+        
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-2">

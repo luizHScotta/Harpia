@@ -91,6 +91,7 @@ const Index = () => {
       <Header
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         onExport={handleExport}
+        onToggleInfoPanel={() => setInfoPanelOpen(!infoPanelOpen)}
       />
       
       <div className="flex-1 flex overflow-hidden">
