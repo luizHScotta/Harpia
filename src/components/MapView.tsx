@@ -359,18 +359,25 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   };
 
   const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0, collection?: string) => {
-    if (!map.current || !result || !mapLoaded) return;
+    console.log("🔄 updateImageOverlay called", { layerIndex, collection, hasResult: !!result, mapLoaded });
+    
+    if (!map.current || !result || !mapLoaded) {
+      console.log("⚠️ Early return:", { hasMap: !!map.current, hasResult: !!result, mapLoaded });
+      return;
+    }
     
     const mapInstance = map.current;
     
     // Verificar se o mapa está pronto
     if (!mapInstance.isStyleLoaded()) {
-      console.log("⏳ Map style not loaded yet, waiting...");
+      console.log("⏳ Map style not loaded yet, retrying in 500ms...");
       setTimeout(() => {
         updateImageOverlay(result, activeLayers, layerIndex, collection);
       }, 500);
       return;
     }
+    
+    console.log("✅ Map is ready, proceeding with overlay update");
     
     // Determine which image to load based on active layers
     const hasSentinel1VV = activeLayers.some(l => l.id === 'sentinel1-vv');
@@ -426,41 +433,68 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     }
     
     if (!imageUrl) {
-      console.error("No image URL available");
+      console.error("❌ No image URL available for result:", result.id);
       return;
     }
+
+    console.log("🖼️ Image URL:", imageUrl);
+    console.log("📊 Opacity:", opacity);
+    console.log("📦 BBox:", result.bbox);
 
     const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
     const sourceId = `${layerId}-source`;
     
+    console.log("🏷️ Layer/Source IDs:", { layerId, sourceId });
+    
     try {
+      // Wait for any pending style changes
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Remove old overlay if exists - verificar de forma segura
+      console.log("🧹 Checking for existing layer/source...");
       let layerExists = false;
       let sourceExists = false;
       
       try {
-        layerExists = !!mapInstance.getLayer(layerId);
+        const layer = mapInstance.getLayer(layerId);
+        layerExists = layer !== undefined;
+        console.log(`Layer ${layerId} exists:`, layerExists);
       } catch (e) {
+        console.log(`Layer ${layerId} check error:`, e);
         layerExists = false;
       }
       
       try {
-        sourceExists = !!mapInstance.getSource(sourceId);
+        const source = mapInstance.getSource(sourceId);
+        sourceExists = source !== undefined;
+        console.log(`Source ${sourceId} exists:`, sourceExists);
       } catch (e) {
+        console.log(`Source ${sourceId} check error:`, e);
         sourceExists = false;
       }
       
       if (layerExists) {
+        console.log(`🗑️ Removing layer: ${layerId}`);
         mapInstance.removeLayer(layerId);
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
       
       if (sourceExists) {
+        console.log(`🗑️ Removing source: ${sourceId}`);
         mapInstance.removeSource(sourceId);
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      if (!result.bbox || result.bbox.length !== 4) {
+        console.error("❌ Invalid bbox:", result.bbox);
+        return;
       }
 
       const [west, south, east, north] = result.bbox;
+      console.log("🗺️ Coordinates:", { west, south, east, north });
       
       // Add image source
+      console.log("➕ Adding image source...");
       mapInstance.addSource(sourceId, {
         type: 'image',
         url: imageUrl,
@@ -471,18 +505,23 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           [west, south]
         ]
       });
+      
+      await new Promise(resolve => setTimeout(resolve, 50));
 
       // Add raster layer with dynamic opacity
       // Colocar acima do terreno 3D se existir
       let beforeLayerId;
       try {
         const layers = mapInstance.getStyle()?.layers || [];
-        const firstSymbolLayer = layers.find(layer => layer.type === 'symbol');
+        const firstSymbolLayer = layers.find(layer => layer && layer.type === 'symbol');
         beforeLayerId = firstSymbolLayer?.id;
+        console.log("🎯 Inserting before layer:", beforeLayerId || "end");
       } catch (e) {
+        console.log("⚠️ Could not find symbol layer:", e);
         beforeLayerId = undefined;
       }
       
+      console.log("➕ Adding raster layer...");
       mapInstance.addLayer({
         id: layerId,
         type: 'raster',
@@ -494,29 +533,47 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         }
       }, beforeLayerId);
 
-      console.log(`✅ Image overlay ${layerIndex} updated - opacity: ${opacity}`);
+      console.log(`✅ Image overlay ${layerIndex} added successfully! - opacity: ${opacity}`);
+      toast.success("Imagem carregada", {
+        description: `Layer: ${layerId}`
+      });
       
     } catch (error) {
       console.error(`❌ Error updating image overlay ${layerIndex}:`, error);
+      toast.error("Erro ao carregar imagem", {
+        description: error instanceof Error ? error.message : "Erro desconhecido"
+      });
     }
   };
 
   const handleResultSelect = async (result: any, collection?: string, isMultiple: boolean = false, index: number = 0) => {
-    console.log("🎯 Selected result:", result, "Collection:", collection);
+    console.log("🎯 handleResultSelect called:", { 
+      resultId: result.id, 
+      collection, 
+      isMultiple, 
+      index,
+      hasAssets: !!result.assets,
+      bbox: result.bbox
+    });
 
     if (!map.current || !mapLoaded) {
+      console.log("⚠️ Map not ready");
       toast.error("Aguarde o mapa carregar");
       return;
     }
     
     // Verificar se o estilo do mapa está carregado
     if (!map.current.isStyleLoaded()) {
+      console.log("⏳ Style not loaded, waiting...");
       toast.info("Aguardando mapa carregar...");
       map.current.once('styledata', () => {
+        console.log("✅ Style loaded, retrying handleResultSelect");
         handleResultSelect(result, collection, isMultiple, index);
       });
       return;
     }
+    
+    console.log("✅ Map ready, processing result...");
 
     try {
       if (!isMultiple) {
