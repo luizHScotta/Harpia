@@ -196,6 +196,12 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   // Update layer visibility and opacity based on selected layers
   useEffect(() => {
     if (!mapLoaded || !map.current || !currentAOI || !currentImageResult) return;
+    
+    // Verificar se o mapa está totalmente carregado
+    if (!map.current.isStyleLoaded()) {
+      console.log("⏳ Waiting for map style to load before updating overlay");
+      return;
+    }
 
     const activeLayers = layers.filter(l => l.enabled);
     console.log("Active layers:", activeLayers.map(l => l.name));
@@ -308,9 +314,18 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   };
 
   const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0, collection?: string) => {
-    if (!map.current || !result) return;
+    if (!map.current || !result || !mapLoaded) return;
     
     const mapInstance = map.current;
+    
+    // Verificar se o mapa está pronto
+    if (!mapInstance.isStyleLoaded()) {
+      console.log("⏳ Map style not loaded yet, waiting...");
+      mapInstance.once('styledata', () => {
+        updateImageOverlay(result, activeLayers, layerIndex, collection);
+      });
+      return;
+    }
     
     // Determine which image to load based on active layers
     const hasSentinel1VV = activeLayers.some(l => l.id === 'sentinel1-vv');
@@ -374,12 +389,21 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     const sourceId = `${layerId}-source`;
     
     try {
-      // Remove old overlay if exists
-      if (mapInstance.getLayer(layerId)) {
-        mapInstance.removeLayer(layerId);
+      // Remove old overlay if exists - verificar de forma segura
+      try {
+        if (mapInstance.getLayer && mapInstance.getLayer(layerId)) {
+          mapInstance.removeLayer(layerId);
+        }
+      } catch (e) {
+        console.log(`Layer ${layerId} doesn't exist, skipping removal`);
       }
-      if (mapInstance.getSource(sourceId)) {
-        mapInstance.removeSource(sourceId);
+      
+      try {
+        if (mapInstance.getSource && mapInstance.getSource(sourceId)) {
+          mapInstance.removeSource(sourceId);
+        }
+      } catch (e) {
+        console.log(`Source ${sourceId} doesn't exist, skipping removal`);
       }
 
       const [west, south, east, north] = result.bbox;
@@ -424,6 +448,15 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
 
     if (!map.current || !mapLoaded) {
       toast.error("Aguarde o mapa carregar");
+      return;
+    }
+    
+    // Verificar se o estilo do mapa está carregado
+    if (!map.current.isStyleLoaded()) {
+      toast.info("Aguardando mapa carregar...");
+      map.current.once('styledata', () => {
+        handleResultSelect(result, collection, isMultiple, index);
+      });
       return;
     }
 
