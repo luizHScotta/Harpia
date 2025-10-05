@@ -14,7 +14,9 @@ import {
   Flame,
   Users,
   Mountain,
-  Satellite
+  Satellite,
+  TreePine,
+  Globe
 } from "lucide-react";
 import {
   Collapsible,
@@ -224,6 +226,66 @@ export const defaultLayers: Layer[] = [
     enabled: false,
     opacity: 70,
     description: "ALOS Global DEM 30m"
+  },
+  {
+    id: "modis-reflectance",
+    name: "MODIS Reflectância",
+    category: "Óptico",
+    icon: Satellite,
+    color: "hsl(140 60% 45%)",
+    enabled: false,
+    opacity: 80,
+    description: "MODIS 250m Reflectância"
+  },
+  {
+    id: "modis-vegetation",
+    name: "MODIS Vegetação",
+    category: "Análises",
+    icon: Leaf,
+    color: "hsl(100 65% 45%)",
+    enabled: false,
+    opacity: 75,
+    description: "MODIS Índice de Vegetação"
+  },
+  {
+    id: "modis-biomass",
+    name: "MODIS Biomassa",
+    category: "Análises",
+    icon: TreePine,
+    color: "hsl(90 60% 40%)",
+    enabled: false,
+    opacity: 70,
+    description: "MODIS Produtividade Primária"
+  },
+  {
+    id: "modis-temperature",
+    name: "MODIS Temperatura",
+    category: "Análises",
+    icon: Thermometer,
+    color: "hsl(20 80% 50%)",
+    enabled: false,
+    opacity: 65,
+    description: "MODIS Temperatura Superfície"
+  },
+  {
+    id: "global-biomass",
+    name: "Biomassa Global",
+    category: "Análises",
+    icon: TreePine,
+    color: "hsl(85 55% 45%)",
+    enabled: false,
+    opacity: 70,
+    description: "Harmonized Global Biomass"
+  },
+  {
+    id: "esa-worldcover",
+    name: "ESA WorldCover",
+    category: "Análises",
+    icon: Globe,
+    color: "hsl(160 60% 45%)",
+    enabled: false,
+    opacity: 75,
+    description: "Cobertura do Solo ESA 10m"
   },
   {
     id: "ndvi",

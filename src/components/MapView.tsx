@@ -320,6 +320,12 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     const hasDEM = activeLayers.some(l => l.id === 'dem');
     const hasNASADEM = activeLayers.some(l => l.id === 'nasadem');
     const hasALOSDEM = activeLayers.some(l => l.id === 'alosdem');
+    const hasMODISReflectance = activeLayers.some(l => l.id === 'modis-reflectance');
+    const hasMODISVegetation = activeLayers.some(l => l.id === 'modis-vegetation');
+    const hasMODISBiomass = activeLayers.some(l => l.id === 'modis-biomass');
+    const hasMODISTemperature = activeLayers.some(l => l.id === 'modis-temperature');
+    const hasGlobalBiomass = activeLayers.some(l => l.id === 'global-biomass');
+    const hasESAWorldCover = activeLayers.some(l => l.id === 'esa-worldcover');
     
     let imageUrl = null;
     let opacity = 0.75;
@@ -371,6 +377,31 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=alos-dem&item=${result.id}&assets=data&colormap=terrain&rescale=0,500&format=png`;
       opacity = (activeLayers.find(l => l.id === 'alosdem')?.opacity || 70) / 100;
       console.log("✅ Using ALOS DEM:", imageUrl);
+    } else if (hasMODISReflectance && collection === 'modis-09Q1-061') {
+      imageUrl = result.assets?.rendered_preview?.href || 
+                 `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-09Q1-061&item=${result.id}&assets=sur_refl_b01&assets=sur_refl_b02&colormap=viridis&format=png`;
+      opacity = (activeLayers.find(l => l.id === 'modis-reflectance')?.opacity || 80) / 100;
+      console.log("✅ Using MODIS Reflectance:", imageUrl);
+    } else if (hasMODISVegetation && collection === 'modis-13A1-061') {
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-13A1-061&item=${result.id}&assets=500m_16_days_NDVI&colormap=greens&rescale=0,10000&format=png`;
+      opacity = (activeLayers.find(l => l.id === 'modis-vegetation')?.opacity || 75) / 100;
+      console.log("✅ Using MODIS Vegetation:", imageUrl);
+    } else if (hasMODISBiomass && collection === 'modis-17A3HGF-061') {
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-17A3HGF-061&item=${result.id}&assets=Npp&colormap=greens&rescale=0,5000&format=png`;
+      opacity = (activeLayers.find(l => l.id === 'modis-biomass')?.opacity || 70) / 100;
+      console.log("✅ Using MODIS Biomass:", imageUrl);
+    } else if (hasMODISTemperature && collection === 'modis-11A1-061') {
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-11A1-061&item=${result.id}&assets=LST_Day_1km&colormap=thermal&rescale=13000,16000&format=png`;
+      opacity = (activeLayers.find(l => l.id === 'modis-temperature')?.opacity || 65) / 100;
+      console.log("✅ Using MODIS Temperature:", imageUrl);
+    } else if (hasGlobalBiomass && collection === 'hgb') {
+      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=hgb&item=${result.id}&assets=aboveground_biomass&colormap=viridis&rescale=0,300&format=png`;
+      opacity = (activeLayers.find(l => l.id === 'global-biomass')?.opacity || 70) / 100;
+      console.log("✅ Using Global Biomass:", imageUrl);
+    } else if (hasESAWorldCover && collection === 'esa-worldcover') {
+      imageUrl = result.assets?.map?.href || result.assets?.rendered_preview?.href;
+      opacity = (activeLayers.find(l => l.id === 'esa-worldcover')?.opacity || 75) / 100;
+      console.log("✅ Using ESA WorldCover:", imageUrl);
     } else {
       console.log("⚠️ No relevant layers enabled");
       return;
@@ -494,7 +525,11 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
   useEffect(() => {
     const activeLayers = layers.filter(l => l.enabled);
     const hasSentinel1 = activeLayers.some(l => l.id.startsWith('sentinel1'));
-    const hasOther = activeLayers.some(l => ['sentinel2', 'landsat', 'dem', 'nasadem', 'alosdem'].includes(l.id));
+    const hasOther = activeLayers.some(l => 
+      ['sentinel2', 'landsat', 'dem', 'nasadem', 'alosdem', 
+       'modis-reflectance', 'modis-vegetation', 'modis-biomass', 
+       'modis-temperature', 'global-biomass', 'esa-worldcover'].includes(l.id)
+    );
     
     if (hasOther && !hasSentinel1) {
       setActiveSearchType('planetary');
