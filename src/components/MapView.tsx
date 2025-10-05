@@ -324,51 +324,64 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     let imageUrl = null;
     let opacity = 0.75;
     
+    console.log("🔍 updateImageOverlay - result:", result);
+    console.log("🔍 Active layers:", { hasSentinel1VV, hasSentinel1VH, hasSentinel2, hasLandsat, hasDEM });
+    
     // Priority: Sentinel-1 VV/VH composite, then individual polarizations
     if (hasSentinel1VV && hasSentinel1VH) {
-      // Use false-color composite (VV, VH)
+      // Use rendered_preview which has proper SAS token
       imageUrl = result.assets?.rendered_preview?.href;
       opacity = Math.max(
         activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100,
         activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100
       ) / 100;
+      console.log("✅ Using VV+VH composite:", imageUrl);
     } else if (hasSentinel1VV) {
-      // Use VV polarization
-      imageUrl = result.assets?.vv?.href || result.assets?.rendered_preview?.href;
+      // Use rendered_preview which has proper SAS token
+      imageUrl = result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100) / 100;
+      console.log("✅ Using VV polarization:", imageUrl);
     } else if (hasSentinel1VH) {
-      // Use VH polarization
-      imageUrl = result.assets?.vh?.href || result.assets?.rendered_preview?.href;
+      // Use rendered_preview which has proper SAS token
+      imageUrl = result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
+      console.log("✅ Using VH polarization:", imageUrl);
     } else if (hasSentinel2 && collection === 'sentinel-2-l2a') {
       // Sentinel-2 True Color
       imageUrl = result.assets?.visual?.href || result.assets?.rendered_preview?.href;
       opacity = (activeLayers.find(l => l.id === 'sentinel2')?.opacity || 80) / 100;
+      console.log("✅ Using Sentinel-2:", imageUrl);
     } else if (hasLandsat && collection === 'landsat-c2-l2') {
       // Landsat True Color - usar asset correto
       imageUrl = result.assets?.rendered_preview?.href || 
                  result.assets?.visual?.href ||
                  `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=landsat-c2-l2&item=${result.id}&assets=red&assets=green&assets=blue&rescale=0,30000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'landsat')?.opacity || 80) / 100;
+      console.log("✅ Using Landsat:", imageUrl);
     } else if (hasDEM && collection === 'cop-dem-glo-30') {
       // DEM visualization with hillshade
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=cop-dem-glo-30&item=${result.id}&assets=data&colormap=terrain&rescale=-100,3000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'dem')?.opacity || 70) / 100;
+      console.log("✅ Using DEM:", imageUrl);
     } else if (hasNASADEM && collection === 'nasadem') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=nasadem&item=${result.id}&assets=elevation&colormap=terrain&rescale=0,500&format=png`;
       opacity = (activeLayers.find(l => l.id === 'nasadem')?.opacity || 70) / 100;
+      console.log("✅ Using NASA DEM:", imageUrl);
     } else if (hasALOSDEM && collection === 'alos-dem') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=alos-dem&item=${result.id}&assets=data&colormap=terrain&rescale=0,500&format=png`;
       opacity = (activeLayers.find(l => l.id === 'alosdem')?.opacity || 70) / 100;
+      console.log("✅ Using ALOS DEM:", imageUrl);
     } else {
-      // No relevant layers enabled, remove overlay
+      console.log("⚠️ No relevant layers enabled");
       return;
     }
     
     if (!imageUrl) {
-      console.error("No image URL available");
+      console.error("❌ No image URL available");
       return;
     }
+    
+    console.log("🌍 Image URL to load:", imageUrl);
 
     const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
     const sourceId = `${layerId}-source`;
@@ -377,12 +390,15 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
       // Remove old overlay if exists
       if (mapInstance.getLayer(layerId)) {
         mapInstance.removeLayer(layerId);
+        console.log(`🗑️ Removed old layer: ${layerId}`);
       }
       if (mapInstance.getSource(sourceId)) {
         mapInstance.removeSource(sourceId);
+        console.log(`🗑️ Removed old source: ${sourceId}`);
       }
 
       const [west, south, east, north] = result.bbox;
+      console.log("📦 BBox:", { west, south, east, north });
       
       // Add image source
       mapInstance.addSource(sourceId, {
@@ -395,6 +411,7 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
           [west, south]
         ]
       });
+      console.log(`✅ Added image source: ${sourceId}`);
 
       // Add raster layer with dynamic opacity
       // Colocar acima do terreno 3D se existir
@@ -412,10 +429,16 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
         }
       }, firstSymbolId);
 
-      console.log(`✅ Image overlay ${layerIndex} updated - opacity: ${opacity}`);
+      console.log(`✅ Image overlay ${layerIndex} added successfully - opacity: ${opacity}`);
+      toast.success("Imagem sobreposta ao mapa", {
+        description: `Opacidade: ${Math.round(opacity * 100)}%`
+      });
       
     } catch (error) {
       console.error(`❌ Error updating image overlay ${layerIndex}:`, error);
+      toast.error("Erro ao carregar overlay", {
+        description: "Verifique o console para detalhes"
+      });
     }
   };
 
