@@ -630,14 +630,15 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
     <div className="absolute inset-0">
       <div ref={mapContainer} className="w-full h-full" />
       
-      {/* Botões de controle */}
-      <div className="absolute top-4 left-4 z-10 space-y-2">
+      {/* Botões de controle - movidos para não conflitar com draw controls */}
+      <div className="absolute bottom-20 left-4 z-10 flex gap-2">
         {currentAOI && (
           <Button
             onClick={clearAllPolygons}
             variant="destructive"
             size="sm"
-            className="shadow-elevated w-full"
+            className="shadow-elevated"
+            title="Limpar Polígonos"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -649,13 +650,12 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="mr-2"
             >
               <path d="M3 6h18" />
               <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
               <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
             </svg>
-            Limpar Polígonos
+            <span className="ml-2">Limpar</span>
           </Button>
         )}
         
@@ -663,17 +663,18 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
           onClick={toggle3DMode}
           variant={is3DMode ? "default" : "outline"}
           size="sm"
-          className="shadow-elevated w-full"
+          className="shadow-elevated"
+          title={is3DMode ? "Mudar para Modo 2D" : "Mudar para Modo 3D"}
         >
           {is3DMode ? (
             <>
-              <Box className="mr-2 h-4 w-4" />
-              Modo 2D
+              <Box className="h-4 w-4" />
+              <span className="ml-2">2D</span>
             </>
           ) : (
             <>
-              <Cuboid className="mr-2 h-4 w-4" />
-              Modo 3D
+              <Cuboid className="h-4 w-4" />
+              <span className="ml-2">3D</span>
             </>
           )}
         </Button>

@@ -105,6 +105,20 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, i
             Busca de Dados
           </h3>
           
+          {aoi ? (
+            <div className="p-2 bg-primary/10 rounded-md border border-primary/20">
+              <p className="text-xs text-foreground font-medium">
+                ✓ Área de interesse definida
+              </p>
+            </div>
+          ) : (
+            <div className="p-2 bg-muted/50 rounded-md border border-border">
+              <p className="text-xs text-muted-foreground">
+                Desenhe um polígono no mapa para definir a área de interesse
+              </p>
+            </div>
+          )}
+          
           <div className="space-y-2">
             <div className="space-y-1">
               <Label htmlFor="startDate" className="text-xs">Data Inicial</Label>
@@ -148,12 +162,6 @@ const LayerControl = ({ layers, onLayerToggle, onOpacityChange, aoi, onSearch, i
               </>
             )}
           </Button>
-
-          {!aoi && (
-            <p className="text-xs text-muted-foreground">
-              Desenhe um polígono no mapa para definir a área de interesse
-            </p>
-          )}
         </Card>
       )}
 
