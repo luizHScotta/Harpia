@@ -362,96 +362,100 @@ const MapView = ({
     if (!map.current || !result || !currentAOI) return;
     const mapInstance = map.current;
 
-    // Determine which image to load based on active layers
-    const hasSentinel1VV = activeLayers.some(l => l.id === 'sentinel1-vv');
-    const hasSentinel1VH = activeLayers.some(l => l.id === 'sentinel1-vh');
-    const hasSentinel2 = activeLayers.some(l => l.id === 'sentinel2');
-    const hasLandsat = activeLayers.some(l => l.id === 'landsat');
-    const hasDEM = activeLayers.some(l => l.id === 'dem');
-    const hasNASADEM = activeLayers.some(l => l.id === 'nasadem');
-    const hasALOSDEM = activeLayers.some(l => l.id === 'alosdem');
-    const hasMODISReflectance = activeLayers.some(l => l.id === 'modis-reflectance');
-    const hasMODISVegetation = activeLayers.some(l => l.id === 'modis-vegetation');
-    const hasMODISBiomass = activeLayers.some(l => l.id === 'modis-biomass');
-    const hasMODISTemperature = activeLayers.some(l => l.id === 'modis-temperature');
-    const hasGlobalBiomass = activeLayers.some(l => l.id === 'global-biomass');
-    const hasESAWorldCover = activeLayers.some(l => l.id === 'esa-worldcover');
+    // Mapear coleção para camadas correspondentes
+    const collectionToLayers: Record<string, string[]> = {
+      'sentinel-1-grd': ['sentinel1-vv', 'sentinel1-vh'],
+      'sentinel-2-l2a': ['sentinel2'],
+      'landsat-c2-l2': ['landsat'],
+      'cop-dem-glo-30': ['dem'],
+      'nasadem': ['nasadem'],
+      'alos-dem': ['alosdem'],
+      'modis-09Q1-061': ['modis-reflectance'],
+      'modis-13A1-061': ['modis-vegetation'],
+      'modis-17A3HGF-061': ['modis-biomass'],
+      'modis-11A1-061': ['modis-temperature'],
+      'hgb': ['global-biomass'],
+      'esa-worldcover': ['esa-worldcover']
+    };
+
+    // Verificar se alguma camada correspondente à coleção está ativa
+    const requiredLayers = collectionToLayers[collection || result.collection] || [];
+    const hasActiveLayer = requiredLayers.some(layerId => 
+      activeLayers.some(l => l.id === layerId)
+    );
+
+    if (!hasActiveLayer) {
+      console.log(`⚠️ No active layer for collection ${collection || result.collection}`);
+      return;
+    }
+
     let imageUrl = null;
     let opacity = 0.75;
-    console.log("🔍 updateImageOverlay - result:", result);
-    console.log("🔍 Active layers:", {
-      hasSentinel1VV,
-      hasSentinel1VH,
-      hasSentinel2,
-      hasLandsat,
-      hasDEM
-    });
+    console.log("🔍 updateImageOverlay - result:", result, "collection:", collection);
 
-    // Priority: Sentinel-1 VV/VH composite, then individual polarizations
-    if (hasSentinel1VV && hasSentinel1VH) {
-      // Use rendered_preview which has proper SAS token
+    // Carregar imagem baseada na coleção
+    if (collection === 'sentinel-1-grd' || result.collection === 'sentinel-1-grd') {
+      const hasSentinel1VV = activeLayers.some(l => l.id === 'sentinel1-vv');
+      const hasSentinel1VH = activeLayers.some(l => l.id === 'sentinel1-vh');
+      
       imageUrl = result.assets?.rendered_preview?.href;
-      opacity = Math.max(activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100, activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
-      console.log("✅ Using VV+VH composite:", imageUrl);
-    } else if (hasSentinel1VV) {
-      // Use rendered_preview which has proper SAS token
-      imageUrl = result.assets?.rendered_preview?.href;
-      opacity = (activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100) / 100;
-      console.log("✅ Using VV polarization:", imageUrl);
-    } else if (hasSentinel1VH) {
-      // Use rendered_preview which has proper SAS token
-      imageUrl = result.assets?.rendered_preview?.href;
-      opacity = (activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
-      console.log("✅ Using VH polarization:", imageUrl);
-    } else if (hasSentinel2 && collection === 'sentinel-2-l2a') {
-      // Sentinel-2 True Color - usar sempre Planetary Computer API
+      if (hasSentinel1VV && hasSentinel1VH) {
+        opacity = Math.max(
+          activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100,
+          activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100
+        ) / 100;
+      } else if (hasSentinel1VV) {
+        opacity = (activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100) / 100;
+      } else if (hasSentinel1VH) {
+        opacity = (activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
+      }
+      console.log("✅ Using Sentinel-1:", imageUrl);
+    } else if (collection === 'sentinel-2-l2a') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=sentinel-2-l2a&item=${result.id}&assets=visual&format=png`;
       opacity = (activeLayers.find(l => l.id === 'sentinel2')?.opacity || 80) / 100;
       console.log("✅ Using Sentinel-2:", imageUrl);
-    } else if (hasLandsat && collection === 'landsat-c2-l2') {
-      // Landsat True Color - usar asset correto
+    } else if (collection === 'landsat-c2-l2') {
       imageUrl = result.assets?.rendered_preview?.href || result.assets?.visual?.href || `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=landsat-c2-l2&item=${result.id}&assets=red&assets=green&assets=blue&rescale=0,30000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'landsat')?.opacity || 80) / 100;
       console.log("✅ Using Landsat:", imageUrl);
-    } else if (hasDEM && collection === 'cop-dem-glo-30') {
-      // DEM visualization with hillshade
+    } else if (collection === 'cop-dem-glo-30') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=cop-dem-glo-30&item=${result.id}&assets=data&colormap=terrain&rescale=-100,3000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'dem')?.opacity || 70) / 100;
       console.log("✅ Using DEM:", imageUrl);
-    } else if (hasNASADEM && collection === 'nasadem') {
+    } else if (collection === 'nasadem') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=nasadem&item=${result.id}&assets=elevation&colormap=terrain&rescale=0,500&format=png`;
       opacity = (activeLayers.find(l => l.id === 'nasadem')?.opacity || 70) / 100;
       console.log("✅ Using NASA DEM:", imageUrl);
-    } else if (hasALOSDEM && collection === 'alos-dem') {
+    } else if (collection === 'alos-dem') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=alos-dem&item=${result.id}&assets=data&colormap=terrain&rescale=0,500&format=png`;
       opacity = (activeLayers.find(l => l.id === 'alosdem')?.opacity || 70) / 100;
       console.log("✅ Using ALOS DEM:", imageUrl);
-    } else if (hasMODISReflectance && collection === 'modis-09Q1-061') {
+    } else if (collection === 'modis-09Q1-061') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-09Q1-061&item=${result.id}&assets=sur_refl_b01&assets=sur_refl_b02&colormap=viridis&format=png`;
       opacity = (activeLayers.find(l => l.id === 'modis-reflectance')?.opacity || 80) / 100;
       console.log("✅ Using MODIS Reflectance:", imageUrl);
-    } else if (hasMODISVegetation && collection === 'modis-13A1-061') {
+    } else if (collection === 'modis-13A1-061') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-13A1-061&item=${result.id}&assets=500m_16_days_NDVI&colormap=greens&rescale=0,10000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'modis-vegetation')?.opacity || 75) / 100;
       console.log("✅ Using MODIS Vegetation:", imageUrl);
-    } else if (hasMODISBiomass && collection === 'modis-17A3HGF-061') {
+    } else if (collection === 'modis-17A3HGF-061') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-17A3HGF-061&item=${result.id}&assets=Npp&colormap=greens&rescale=0,5000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'modis-biomass')?.opacity || 70) / 100;
       console.log("✅ Using MODIS Biomass:", imageUrl);
-    } else if (hasMODISTemperature && collection === 'modis-11A1-061') {
+    } else if (collection === 'modis-11A1-061') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-11A1-061&item=${result.id}&assets=LST_Day_1km&colormap=thermal&rescale=13000,16000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'modis-temperature')?.opacity || 65) / 100;
       console.log("✅ Using MODIS Temperature:", imageUrl);
-    } else if (hasGlobalBiomass && collection === 'hgb') {
+    } else if (collection === 'hgb') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=hgb&item=${result.id}&assets=aboveground_biomass&colormap=viridis&rescale=0,300&format=png`;
       opacity = (activeLayers.find(l => l.id === 'global-biomass')?.opacity || 70) / 100;
       console.log("✅ Using Global Biomass:", imageUrl);
-    } else if (hasESAWorldCover && collection === 'esa-worldcover') {
+    } else if (collection === 'esa-worldcover') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=esa-worldcover&item=${result.id}&assets=map&format=png`;
       opacity = (activeLayers.find(l => l.id === 'esa-worldcover')?.opacity || 75) / 100;
       console.log("✅ Using ESA WorldCover:", imageUrl);
     } else {
-      console.log("⚠️ No relevant layers enabled");
+      console.log("⚠️ No matching collection for active layers");
       return;
     }
     if (!imageUrl) {
