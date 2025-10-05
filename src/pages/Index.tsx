@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import LayerControl, { defaultLayers, Layer } from "@/components/LayerControl";
 import MapView from "@/components/MapView";
 import InfoPanel from "@/components/InfoPanel";
+import RiskAnalysisPanel from "@/components/RiskAnalysisPanel";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 const Index = () => {
@@ -97,7 +98,7 @@ const Index = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar with Layer Controls */}
         {sidebarOpen && (
-          <aside className="w-80 bg-card border-r border-border overflow-y-auto p-4">
+          <aside className="w-80 bg-card border-r border-border overflow-y-auto p-4 space-y-4">
             <LayerControl
               layers={layers}
               onLayerToggle={handleLayerToggle}
@@ -106,6 +107,11 @@ const Index = () => {
               aoi={currentAOI}
               onSearch={handleSearch}
               isSearching={isSearching}
+            />
+            <RiskAnalysisPanel
+              aoi={currentAOI}
+              layers={layers}
+              searchResults={searchResults}
             />
           </aside>
         )}

@@ -214,11 +214,89 @@ const MapView = ({
           'maxzoom': 14
         });
 
-        // Configurar terreno 3D
+        // Configurar terreno 3D com exageração
         map.current.setTerrain({
           'source': 'mapbox-dem',
-          'exaggeration': 2.5 // Exagerar relevo para melhor visualização
+          'exaggeration': 2.5
         });
+
+        // Adicionar camada de elevação colorida (vermelho=baixo, amarelo=médio, azul=alto)
+        map.current.addLayer({
+          'id': 'hillshade',
+          'type': 'hillshade',
+          'source': 'mapbox-dem',
+          'paint': {
+            'hillshade-exaggeration': 0.8,
+            'hillshade-shadow-color': '#000000',
+            'hillshade-highlight-color': '#ffffff'
+          }
+        }, 'belem-areas-fill');
+
+        // Adicionar modelos 3D de edifícios
+        const layers = map.current.getStyle().layers;
+        const labelLayerId = layers.find(
+          (layer) => layer.type === 'symbol' && layer.layout && layer.layout['text-field']
+        )?.id;
+
+        if (!map.current.getLayer('3d-buildings')) {
+          map.current.addLayer({
+            'id': '3d-buildings',
+            'source': 'composite',
+            'source-layer': 'building',
+            'filter': ['==', 'extrude', 'true'],
+            'type': 'fill-extrusion',
+            'minzoom': 15,
+            'paint': {
+              'fill-extrusion-color': [
+                'interpolate',
+                ['linear'],
+                ['get', 'height'],
+                0, 'hsl(0, 70%, 50%)',      // Vermelho para baixo
+                15, 'hsl(45, 85%, 55%)',    // Amarelo para médio
+                30, 'hsl(210, 75%, 55%)'    // Azul para alto
+              ],
+              'fill-extrusion-height': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                15, 0,
+                15.05, ['get', 'height']
+              ],
+              'fill-extrusion-base': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                15, 0,
+                15.05, ['get', 'min_height']
+              ],
+              'fill-extrusion-opacity': 0.6
+            }
+          }, labelLayerId);
+        }
+
+        // Adicionar camada NASA GIBS (exemplo: MODIS Terra True Color)
+        if (!map.current.getSource('nasa-gibs-modis')) {
+          const today = new Date();
+          const dateStr = today.toISOString().split('T')[0];
+          
+          map.current.addSource('nasa-gibs-modis', {
+            'type': 'raster',
+            'tiles': [
+              `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${dateStr}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`
+            ],
+            'tileSize': 256,
+            'attribution': 'NASA GIBS'
+          });
+
+          map.current.addLayer({
+            'id': 'nasa-gibs-layer',
+            'type': 'raster',
+            'source': 'nasa-gibs-modis',
+            'paint': {
+              'raster-opacity': 0
+            }
+          }, 'belem-areas-fill');
+        }
 
         // Adicionar sky layer para efeito atmosférico
         map.current.addLayer({
@@ -236,8 +314,9 @@ const MapView = ({
           'exaggeration': 2.5
         });
       }
+      
       toast.success("Modo 3D ativado", {
-        description: "Terreno com elevação real"
+        description: "Terreno com elevação colorida e modelos 3D"
       });
     } else {
       // Voltar para 2D
@@ -247,8 +326,19 @@ const MapView = ({
         duration: 1500
       });
 
-      // Remover terreno 3D
+      // Remover terreno 3D e camadas associadas
       map.current.setTerrain(null);
+      
+      if (map.current.getLayer('hillshade')) {
+        map.current.removeLayer('hillshade');
+      }
+      if (map.current.getLayer('3d-buildings')) {
+        map.current.removeLayer('3d-buildings');
+      }
+      if (map.current.getLayer('sky')) {
+        map.current.removeLayer('sky');
+      }
+      
       toast.success("Modo 2D ativado");
     }
   };
