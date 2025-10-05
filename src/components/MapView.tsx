@@ -360,27 +360,81 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
     // Priority: Check for processed index tiles first
     if (result.tileUrl && result.indexType) {
       // This is a processed index result from process-water-index
-      // Use the tileUrl directly as it's already processed with correct colormap
-      imageUrl = result.tileUrl.replace('{z}/{x}/{y}', '12/1647/1845'); // Use a tile in the middle of Belém
+      // It's a tile URL template, need to use raster layer instead of image
+      const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
+      const sourceId = `${layerId}-source`;
       
       // Determine which layer is active and use its opacity
+      let targetLayerId = '';
       if (hasNDWI && result.indexType === 'ndwi') {
         opacity = (activeLayers.find(l => l.id === 'ndwi-water')?.opacity || 70) / 100;
-        console.log("✅ Using NDWI index:", imageUrl);
+        targetLayerId = 'ndwi-water';
+        console.log("✅ Using NDWI index tile layer");
       } else if (hasSARWater && result.indexType === 'sar-water') {
         opacity = (activeLayers.find(l => l.id === 'sar-backscatter')?.opacity || 70) / 100;
-        console.log("✅ Using SAR Water index:", imageUrl);
+        targetLayerId = 'sar-backscatter';
+        console.log("✅ Using SAR Water index tile layer");
       } else if (hasNDVI && result.indexType === 'ndvi') {
         opacity = (activeLayers.find(l => l.id === 'ndvi-vegetation')?.opacity || 70) / 100;
-        console.log("✅ Using NDVI index:", imageUrl);
+        targetLayerId = 'ndvi-vegetation';
+        console.log("✅ Using NDVI index tile layer");
       } else if (hasNDMI && result.indexType === 'ndmi') {
         opacity = (activeLayers.find(l => l.id === 'ndmi-moisture')?.opacity || 70) / 100;
-        console.log("✅ Using NDMI index:", imageUrl);
+        targetLayerId = 'ndmi-moisture';
+        console.log("✅ Using NDMI index tile layer");
       } else if (hasFalseColor && result.indexType === 'false-color') {
         opacity = (activeLayers.find(l => l.id === 'false-color-ir')?.opacity || 80) / 100;
-        console.log("✅ Using False Color IR:", imageUrl);
+        targetLayerId = 'false-color-ir';
+        console.log("✅ Using False Color IR tile layer");
+      }
+
+      try {
+        // Remove old overlay if exists
+        if (mapInstance.getLayer(layerId)) {
+          mapInstance.removeLayer(layerId);
+          console.log(`🗑️ Removed old tile layer: ${layerId}`);
+        }
+        if (mapInstance.getSource(sourceId)) {
+          mapInstance.removeSource(sourceId);
+          console.log(`🗑️ Removed old tile source: ${sourceId}`);
+        }
+
+        // Add raster tile source (not image!)
+        mapInstance.addSource(sourceId, {
+          type: 'raster',
+          tiles: [result.tileUrl],
+          tileSize: 256,
+          maxzoom: 18
+        });
+        console.log(`✅ Added raster tile source: ${sourceId}`);
+
+        // Add raster layer
+        mapInstance.addLayer({
+          id: layerId,
+          type: 'raster',
+          source: sourceId,
+          paint: {
+            'raster-opacity': opacity,
+            'raster-fade-duration': 0
+          }
+        });
+        console.log(`✅ Raster tile layer ${layerId} added successfully with opacity: ${opacity}`);
+
+        // Fit map to bounds
+        const [west, south, east, north] = result.bbox;
+        mapInstance.fitBounds([[west, south], [east, north]], {
+          padding: 50,
+          duration: 1000
+        });
+
+        return; // Exit early, we've handled the tile rendering
+      } catch (error) {
+        console.error(`❌ Error adding raster tile layer: ${layerId}`, error);
+        toast.error("Erro ao carregar camada");
+        return;
       }
     }
+    
     // Priority: Sentinel-1 VV/VH composite, then individual polarizations
     else if (hasSentinel1VV && hasSentinel1VH) {
       // Use rendered_preview which has proper SAS token
@@ -627,7 +681,10 @@ const MapView = ({ layers, onFeatureClick }: MapViewProps) => {
 
       const { supabase } = await import("@/integrations/supabase/client");
       const endDate = new Date().toISOString().split('T')[0];
-      const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      // MODIS products need longer time windows (composites every 8-16 days)
+      const daysBack = config.collection.startsWith('modis') ? 180 : 90;
+      const startDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
       if (config.indexType) {
         // Use process-water-index for spectral indices
