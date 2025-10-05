@@ -11,19 +11,12 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Mapbox token configured
 const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
-
 interface MapViewProps {
   layers: Layer[];
   onFeatureClick: (data: any) => void;
   onAOIChange: (aoi: any) => void;
-  onSearchComplete: (
-    handleSearch: (start: string, end: string) => Promise<void>, 
-    isSearching: boolean,
-    results?: any[],
-    imageSelectFn?: (result: any, collection: string) => void
-  ) => void;
+  onSearchComplete: (handleSearch: (start: string, end: string) => Promise<void>, isSearching: boolean, results?: any[], imageSelectFn?: (result: any, collection: string) => void) => void;
 }
-
 interface SatelliteLayer {
   id: string;
   type: 'sentinel1' | 'sentinel2';
@@ -31,8 +24,12 @@ interface SatelliteLayer {
   bbox: number[];
   opacity?: number;
 }
-
-const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapViewProps) => {
+const MapView = ({
+  layers,
+  onFeatureClick,
+  onAOIChange,
+  onSearchComplete
+}: MapViewProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const draw = useRef<MapboxDraw | null>(null);
@@ -43,41 +40,31 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
   const [is3DMode, setIs3DMode] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const imageCache = useRef<Map<string, string>>(new Map());
-
   console.log("MapView render - mapLoaded:", mapLoaded);
-
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
-
     mapboxgl.accessToken = MAPBOX_TOKEN;
-
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/dark-v11",
-      center: [-48.5044, -1.4558], // Belém coordinates
+      center: [-48.5044, -1.4558],
+      // Belém coordinates
       zoom: 11,
       pitch: 0,
-      antialias: true, // Melhor qualidade 3D
+      antialias: true // Melhor qualidade 3D
     });
-
     console.log("Mapbox map initialized");
 
     // Add navigation controls
-    map.current.addControl(
-      new mapboxgl.NavigationControl({
-        visualizePitch: true,
-      }),
-      "top-right"
-    );
+    map.current.addControl(new mapboxgl.NavigationControl({
+      visualizePitch: true
+    }), "top-right");
 
     // Add scale control
-    map.current.addControl(
-      new mapboxgl.ScaleControl({
-        maxWidth: 100,
-        unit: "metric",
-      }),
-      "bottom-right"
-    );
+    map.current.addControl(new mapboxgl.ScaleControl({
+      maxWidth: 100,
+      unit: "metric"
+    }), "bottom-right");
 
     // Add drawing controls
     draw.current = new MapboxDraw({
@@ -94,7 +81,6 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
     map.current.on('draw.create', updateArea);
     map.current.on('draw.delete', updateArea);
     map.current.on('draw.update', updateArea);
-
     function updateArea() {
       const data = draw.current?.getAll();
       if (data && data.features.length > 0) {
@@ -121,11 +107,10 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
         removeImageOverlay();
       }
     }
-
     map.current.on("load", () => {
       console.log("Mapbox map loaded successfully");
       setMapLoaded(true);
-      
+
       // Add example polygon for Belém baixadas
       if (map.current) {
         // Example: Área da Cidade de Deus / Fazendinha
@@ -133,56 +118,44 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
           type: "geojson",
           data: {
             type: "FeatureCollection",
-            features: [
-              {
-                type: "Feature",
-                properties: {
-                  name: "Região da Baixada - Fazendinha",
-                  population: 45000,
-                  floodRisk: "Alto",
-                  avgNDVI: 0.35,
-                  avgLST: 32.5,
-                  sanitation: 45,
-                },
-                geometry: {
-                  type: "Polygon",
-                  coordinates: [
-                    [
-                      [-48.52, -1.47],
-                      [-48.49, -1.47],
-                      [-48.49, -1.44],
-                      [-48.52, -1.44],
-                      [-48.52, -1.47],
-                    ],
-                  ],
-                },
+            features: [{
+              type: "Feature",
+              properties: {
+                name: "Região da Baixada - Fazendinha",
+                population: 45000,
+                floodRisk: "Alto",
+                avgNDVI: 0.35,
+                avgLST: 32.5,
+                sanitation: 45
               },
-            ],
-          },
+              geometry: {
+                type: "Polygon",
+                coordinates: [[[-48.52, -1.47], [-48.49, -1.47], [-48.49, -1.44], [-48.52, -1.44], [-48.52, -1.47]]]
+              }
+            }]
+          }
         });
-
         map.current.addLayer({
           id: "belem-areas-fill",
           type: "fill",
           source: "belem-areas",
           paint: {
             "fill-color": "hsl(165 65% 45%)",
-            "fill-opacity": 0.2,
-          },
+            "fill-opacity": 0.2
+          }
         });
-
         map.current.addLayer({
           id: "belem-areas-outline",
           type: "line",
           source: "belem-areas",
           paint: {
             "line-color": "hsl(165 65% 45%)",
-            "line-width": 2,
-          },
+            "line-width": 2
+          }
         });
 
         // Click handler
-        map.current.on("click", "belem-areas-fill", (e) => {
+        map.current.on("click", "belem-areas-fill", e => {
           if (e.features && e.features[0]) {
             onFeatureClick(e.features[0].properties);
           }
@@ -192,13 +165,11 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
         map.current.on("mouseenter", "belem-areas-fill", () => {
           if (map.current) map.current.getCanvas().style.cursor = "pointer";
         });
-
         map.current.on("mouseleave", "belem-areas-fill", () => {
           if (map.current) map.current.getCanvas().style.cursor = "";
         });
       }
     });
-
     return () => {
       map.current?.remove();
     };
@@ -207,14 +178,12 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
   // Update layer visibility and opacity based on selected layers
   useEffect(() => {
     if (!mapLoaded || !map.current || !currentAOI || !currentImageResult) return;
-
     const activeLayers = layers.filter(l => l.enabled);
     console.log("Active layers:", activeLayers.map(l => l.name));
-    
+
     // Update image based on active layers
     updateImageOverlay(currentImageResult, activeLayers);
   }, [layers, mapLoaded, currentAOI, currentImageResult]);
-
   const clearAllPolygons = () => {
     if (draw.current) {
       draw.current.deleteAll();
@@ -224,13 +193,10 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       toast.success("Todos os polígonos removidos");
     }
   };
-
   const toggle3DMode = () => {
     if (!map.current) return;
-    
     const newMode = !is3DMode;
     setIs3DMode(newMode);
-    
     if (newMode) {
       // Ativar 3D com terreno
       map.current.easeTo({
@@ -247,10 +213,10 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
           'tileSize': 512,
           'maxzoom': 14
         });
-        
+
         // Configurar terreno 3D
-        map.current.setTerrain({ 
-          'source': 'mapbox-dem', 
+        map.current.setTerrain({
+          'source': 'mapbox-dem',
           'exaggeration': 2.5 // Exagerar relevo para melhor visualização
         });
 
@@ -265,12 +231,11 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
           }
         });
       } else {
-        map.current.setTerrain({ 
-          'source': 'mapbox-dem', 
-          'exaggeration': 2.5 
+        map.current.setTerrain({
+          'source': 'mapbox-dem',
+          'exaggeration': 2.5
         });
       }
-      
       toast.success("Modo 3D ativado", {
         description: "Terreno com elevação real"
       });
@@ -281,29 +246,25 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
         bearing: 0,
         duration: 1500
       });
-      
+
       // Remover terreno 3D
       map.current.setTerrain(null);
-      
       toast.success("Modo 2D ativado");
     }
   };
-
   const removeImageOverlay = () => {
     if (!map.current) return;
-    
     const mapInstance = map.current;
-    
+
     // Remover todos os markers
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
-    
+
     // Remove all SAR overlays (pode ter múltiplos agora)
     let layerIndex = 0;
     while (true) {
       const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
       const sourceId = `${layerId}-source`;
-      
       try {
         if (mapInstance.getLayer(layerId)) {
           mapInstance.removeLayer(layerId);
@@ -318,23 +279,19 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
         break;
       }
     }
-    
     console.log("🗑️ All image overlays and markers removed");
   };
-
   const clipImageToPolygon = async (imageUrl: string, bbox: number[], polygonCoords: number[][]): Promise<string> => {
     const cacheKey = `${imageUrl}-${JSON.stringify(polygonCoords)}`;
-    
+
     // Verificar cache
     if (imageCache.current.has(cacheKey)) {
       console.log("✅ Using cached clipped image");
       return imageCache.current.get(cacheKey)!;
     }
-
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
@@ -344,23 +301,21 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
           // Configurar tamanho do canvas baseado na imagem
           canvas.width = img.width;
           canvas.height = img.height;
-
           const [west, south, east, north] = bbox;
           const bboxWidth = east - west;
           const bboxHeight = north - south;
 
           // Converter coordenadas do polígono para pixels do canvas
           const pixelCoords = polygonCoords.map(([lng, lat]) => {
-            const x = ((lng - west) / bboxWidth) * canvas.width;
-            const y = ((north - lat) / bboxHeight) * canvas.height;
+            const x = (lng - west) / bboxWidth * canvas.width;
+            const y = (north - lat) / bboxHeight * canvas.height;
             return [x, y];
           });
 
           // Aplicar clip path do polígono
           ctx.beginPath();
           pixelCoords.forEach(([x, y], i) => {
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+            if (i === 0) ctx.moveTo(x, y);else ctx.lineTo(x, y);
           });
           ctx.closePath();
           ctx.clip();
@@ -370,18 +325,16 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
 
           // Converter para data URL
           const clippedImageUrl = canvas.toDataURL('image/png');
-          
+
           // Armazenar em cache
           imageCache.current.set(cacheKey, clippedImageUrl);
           console.log("✅ Image clipped and cached");
-          
           resolve(clippedImageUrl);
         } catch (error) {
           console.error('❌ Error clipping image:', error);
           reject(error);
         }
       };
-
       img.onerror = () => reject(new Error('Failed to load image'));
       img.src = imageUrl;
     });
@@ -405,12 +358,10 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
     };
     return names[collection] || collection;
   };
-
   const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0, collection?: string) => {
     if (!map.current || !result || !currentAOI) return;
-    
     const mapInstance = map.current;
-    
+
     // Determine which image to load based on active layers
     const hasSentinel1VV = activeLayers.some(l => l.id === 'sentinel1-vv');
     const hasSentinel1VH = activeLayers.some(l => l.id === 'sentinel1-vh');
@@ -425,21 +376,22 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
     const hasMODISTemperature = activeLayers.some(l => l.id === 'modis-temperature');
     const hasGlobalBiomass = activeLayers.some(l => l.id === 'global-biomass');
     const hasESAWorldCover = activeLayers.some(l => l.id === 'esa-worldcover');
-    
     let imageUrl = null;
     let opacity = 0.75;
-    
     console.log("🔍 updateImageOverlay - result:", result);
-    console.log("🔍 Active layers:", { hasSentinel1VV, hasSentinel1VH, hasSentinel2, hasLandsat, hasDEM });
-    
+    console.log("🔍 Active layers:", {
+      hasSentinel1VV,
+      hasSentinel1VH,
+      hasSentinel2,
+      hasLandsat,
+      hasDEM
+    });
+
     // Priority: Sentinel-1 VV/VH composite, then individual polarizations
     if (hasSentinel1VV && hasSentinel1VH) {
       // Use rendered_preview which has proper SAS token
       imageUrl = result.assets?.rendered_preview?.href;
-      opacity = Math.max(
-        activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100,
-        activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100
-      ) / 100;
+      opacity = Math.max(activeLayers.find(l => l.id === 'sentinel1-vv')?.opacity || 100, activeLayers.find(l => l.id === 'sentinel1-vh')?.opacity || 100) / 100;
       console.log("✅ Using VV+VH composite:", imageUrl);
     } else if (hasSentinel1VV) {
       // Use rendered_preview which has proper SAS token
@@ -458,9 +410,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       console.log("✅ Using Sentinel-2:", imageUrl);
     } else if (hasLandsat && collection === 'landsat-c2-l2') {
       // Landsat True Color - usar asset correto
-      imageUrl = result.assets?.rendered_preview?.href || 
-                 result.assets?.visual?.href ||
-                 `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=landsat-c2-l2&item=${result.id}&assets=red&assets=green&assets=blue&rescale=0,30000&format=png`;
+      imageUrl = result.assets?.rendered_preview?.href || result.assets?.visual?.href || `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=landsat-c2-l2&item=${result.id}&assets=red&assets=green&assets=blue&rescale=0,30000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'landsat')?.opacity || 80) / 100;
       console.log("✅ Using Landsat:", imageUrl);
     } else if (hasDEM && collection === 'cop-dem-glo-30') {
@@ -504,17 +454,13 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       console.log("⚠️ No relevant layers enabled");
       return;
     }
-    
     if (!imageUrl) {
       console.error("❌ No image URL available");
       return;
     }
-    
     console.log("🌍 Image URL to load:", imageUrl);
-
     const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
     const sourceId = `${layerId}-source`;
-    
     try {
       // Remove old overlay if exists
       if (mapInstance.getLayer(layerId)) {
@@ -525,10 +471,14 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
         mapInstance.removeSource(sourceId);
         console.log(`🗑️ Removed old source: ${sourceId}`);
       }
-
       const [west, south, east, north] = result.bbox;
-      console.log("📦 BBox:", { west, south, east, north });
-      
+      console.log("📦 BBox:", {
+        west,
+        south,
+        east,
+        north
+      });
+
       // Recortar imagem pelo polígono se disponível
       let finalImageUrl = imageUrl;
       if (currentAOI?.geometry?.coordinates?.[0]) {
@@ -538,17 +488,12 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       } else {
         console.log("⚠️ No AOI polygon available, using full image");
       }
-      
+
       // Add image source
       mapInstance.addSource(sourceId, {
         type: 'image',
         url: finalImageUrl,
-        coordinates: [
-          [west, north],
-          [east, north],
-          [east, south],
-          [west, south]
-        ]
+        coordinates: [[west, north], [east, north], [east, south], [west, south]]
       });
       console.log(`✅ Added clipped image source: ${sourceId}`);
 
@@ -556,7 +501,6 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       // Colocar acima do terreno 3D se existir
       const layers = mapInstance.getStyle().layers;
       const firstSymbolId = layers?.find(layer => layer.type === 'symbol')?.id;
-      
       mapInstance.addLayer({
         id: layerId,
         type: 'raster',
@@ -572,7 +516,6 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       const [minLng, minLat, maxLng, maxLat] = result.bbox;
       const centerLng = (minLng + maxLng) / 2;
       const centerLat = (minLat + maxLat) / 2;
-
       const el = document.createElement('div');
       el.className = 'satellite-badge';
       el.innerHTML = `<span class="badge-content">${getCollectionDisplayName(collection || result.collection)}</span>`;
@@ -588,18 +531,14 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
         white-space: nowrap;
         border: 1px solid hsl(var(--primary) / 0.5);
       `;
-
-      const marker = new mapboxgl.Marker({ element: el })
-        .setLngLat([centerLng, centerLat])
-        .addTo(mapInstance);
-
+      const marker = new mapboxgl.Marker({
+        element: el
+      }).setLngLat([centerLng, centerLat]).addTo(mapInstance);
       markersRef.current.push(marker);
-
       console.log(`✅ Image overlay ${layerIndex} added successfully with badge - opacity: ${opacity}`);
       toast.success("Imagem recortada sobreposta ao mapa", {
         description: `${getCollectionDisplayName(collection || result.collection)} - Opacidade: ${Math.round(opacity * 100)}%`
       });
-      
     } catch (error) {
       console.error(`❌ Error updating image overlay ${layerIndex}:`, error);
       toast.error("Erro ao carregar overlay", {
@@ -607,30 +546,24 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       });
     }
   };
-
   const handleResultSelect = async (result: any, collection?: string, isMultiple: boolean = false, index: number = 0) => {
     console.log("🎯 Selected result:", result, "Collection:", collection);
-
     if (!map.current || !mapLoaded) {
       toast.error("Aguarde o mapa carregar");
       return;
     }
-
     try {
       if (!isMultiple) {
         // Single image: replace current
         setCurrentImageResult(result);
         removeImageOverlay();
       }
-      
       const activeLayers = layers.filter(l => l.enabled);
       await updateImageOverlay(result, activeLayers, index, collection);
-
       if (!isMultiple) {
         toast.success("Imagem carregada", {
           description: `${result.collection} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
         });
-
         onFeatureClick({
           name: result.id,
           date: new Date(result.datetime).toLocaleDateString('pt-BR'),
@@ -640,7 +573,6 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
           collection: result.collection
         });
       }
-      
     } catch (error) {
       console.error("❌ Error loading image:", error);
       if (!isMultiple) {
@@ -648,27 +580,21 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       }
     }
   };
-
   const handleSearch = async (startDate: string, endDate: string) => {
     console.log("🔍 handleSearch called - currentAOI:", currentAOI);
-    
     if (!currentAOI) {
       toast.error("Defina uma área de interesse no mapa", {
-        description: "Use a ferramenta de desenho para criar um polígono",
+        description: "Use a ferramenta de desenho para criar um polígono"
       });
       return;
     }
-
     const activeLayers = layers.filter(l => l.enabled);
     const hasSentinel1 = activeLayers.some(l => l.id.startsWith('sentinel1'));
     const activeCollections = getActiveCollections();
-    
     setIsSearching(true);
-
     try {
       const startISO = new Date(startDate + 'T00:00:00Z').toISOString();
       const endISO = new Date(endDate + 'T23:59:59Z').toISOString();
-
       const searchPromises = [];
 
       // Buscar Sentinel-1 se estiver ativo
@@ -709,19 +635,17 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
 
       // Executar todas as buscas em paralelo
       const results = await Promise.all(searchPromises);
-      
+
       // Agregar todos os resultados
       let allResults: any[] = [];
       let totalCount = 0;
       let hasError = false;
-
       for (const result of results) {
         if (result.error) {
           console.error(`Erro ao buscar ${result.collection}:`, result.error);
           hasError = true;
           continue;
         }
-
         if (result.data?.success && result.data.results?.length > 0) {
           // Adicionar a coleção a cada resultado para identificação
           const resultsWithCollection = result.data.results.map((r: any) => ({
@@ -732,22 +656,18 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
           totalCount += result.data.count || result.data.results.length;
         }
       }
-
       if (allResults.length > 0) {
         // Ordenar por data (mais recente primeiro)
-        allResults.sort((a, b) => 
-          new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
-        );
+        allResults.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
 
         // Carregar o primeiro resultado
         const firstResult = allResults[0];
         await handleResultSelect(firstResult, firstResult.searchCollection);
-        
+
         // Passar todos os resultados para exibir na galeria
         onSearchComplete(handleSearch, isSearching, allResults, handleResultSelect);
-        
         toast.success(`${totalCount} imagens encontradas`, {
-          description: `${allResults.length} imagens de ${searchPromises.length} fonte(s)`,
+          description: `${allResults.length} imagens de ${searchPromises.length} fonte(s)`
         });
       } else {
         onSearchComplete(handleSearch, isSearching, [], handleResultSelect);
@@ -758,7 +678,7 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
     } catch (error: any) {
       console.error("Search error:", error);
       toast.error("Erro na busca", {
-        description: error.message || "Tente novamente",
+        description: error.message || "Tente novamente"
       });
     } finally {
       setIsSearching(false);
@@ -769,7 +689,6 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
   useEffect(() => {
     onSearchComplete(handleSearch, isSearching, undefined, handleResultSelect);
   }, [currentAOI, isSearching]);
-
   const getActiveCollections = () => {
     const activeLayers = layers.filter(l => l.enabled);
     const collections: string[] = [];
@@ -801,66 +720,34 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
     if (collections.length === 0) {
       collections.push('sentinel-2-l2a');
     }
-
     return collections;
   };
-
   const getActiveCollection = () => {
     const collections = getActiveCollections();
     return collections[0] || 'sentinel-2-l2a';
   };
-
-  return (
-    <div className="absolute inset-0">
+  return <div className="absolute inset-0">
       <div ref={mapContainer} className="w-full h-full" />
       
       {/* Botões de controle - movidos para não conflitar com draw controls */}
       <div className="absolute bottom-20 left-4 z-10 flex gap-2">
-        {currentAOI && (
-          <Button
-            onClick={clearAllPolygons}
-            variant="destructive"
-            size="sm"
-            className="shadow-elevated"
-            title="Limpar Polígonos"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
+        {currentAOI && <Button onClick={clearAllPolygons} variant="destructive" size="sm" className="shadow-elevated" title="Limpar Polígonos">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 6h18" />
               <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
               <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
             </svg>
             <span className="ml-2">Limpar</span>
-          </Button>
-        )}
+          </Button>}
         
-        <Button
-          onClick={toggle3DMode}
-          variant={is3DMode ? "default" : "outline"}
-          size="sm"
-          className="shadow-elevated"
-          title={is3DMode ? "Mudar para Modo 2D" : "Mudar para Modo 3D"}
-        >
-          {is3DMode ? (
-            <>
+        <Button onClick={toggle3DMode} variant={is3DMode ? "default" : "outline"} size="sm" className="shadow-elevated" title={is3DMode ? "Mudar para Modo 2D" : "Mudar para Modo 3D"}>
+          {is3DMode ? <>
               <Box className="h-4 w-4" />
               <span className="ml-2">2D</span>
-            </>
-          ) : (
-            <>
+            </> : <>
               <Cuboid className="h-4 w-4" />
               <span className="ml-2">3D</span>
-            </>
-          )}
+            </>}
         </Button>
       </div>
       
@@ -870,31 +757,25 @@ const MapView = ({ layers, onFeatureClick, onAOIChange, onSearchComplete }: MapV
       </div>
 
       {/* Legend */}
-      {layers.some(l => l.enabled) && (
-        <div className="absolute top-24 right-4 bg-card/95 backdrop-blur-sm p-4 rounded-lg border border-border shadow-elevated max-w-xs">
+      {layers.some(l => l.enabled) && <div className="absolute top-24 right-4 bg-card/95 backdrop-blur-sm p-4 rounded-lg border border-border shadow-elevated max-w-xs py-[20px] mx-0 my-[20px]">
           <h4 className="text-sm font-semibold mb-3 text-foreground">
             Camadas Ativas
           </h4>
           <div className="space-y-2">
-            {layers
-              .filter(l => l.enabled)
-              .map(layer => {
-                const Icon = layer.icon;
-                return (
-                  <div key={layer.id} className="flex items-center gap-2">
-                    <Icon className="h-3 w-3" style={{ color: layer.color }} />
+            {layers.filter(l => l.enabled).map(layer => {
+          const Icon = layer.icon;
+          return <div key={layer.id} className="flex items-center gap-2">
+                    <Icon className="h-3 w-3" style={{
+              color: layer.color
+            }} />
                     <span className="text-xs text-foreground">{layer.name}</span>
                     <span className="text-xs text-muted-foreground ml-auto">
                       {layer.opacity}%
                     </span>
-                  </div>
-                );
-              })}
+                  </div>;
+        })}
           </div>
-        </div>
-      )}
-    </div>
-  );
+        </div>}
+    </div>;
 };
-
 export default MapView;
