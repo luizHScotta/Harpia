@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-import MapboxDraw from "@mapbox/mapbox-gl-draw";
-import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 import { Layer } from "./LayerControl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Box, Cuboid } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { getMapboxToken } from "./MapboxTokenInput";
+import { getCesiumToken } from "./CesiumTokenInput";
+import * as Cesium from "cesium";
+import "cesium/Build/Cesium/Widgets/widgets.css";
+
 interface MapViewProps {
   layers: Layer[];
   onFeatureClick: (data: any) => void;
   onAOIChange: (aoi: any) => void;
   onSearchComplete: (handleSearch: (start: string, end: string) => Promise<void>, isSearching: boolean, results?: any[], imageSelectFn?: (result: any, collection: string) => void) => void;
 }
+
 interface SatelliteLayer {
   id: string;
   type: 'sentinel1' | 'sentinel2';
@@ -22,191 +22,230 @@ interface SatelliteLayer {
   bbox: number[];
   opacity?: number;
 }
+
 const MapView = ({
   layers,
   onFeatureClick,
   onAOIChange,
   onSearchComplete
 }: MapViewProps) => {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const draw = useRef<MapboxDraw | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const cesiumContainer = useRef<HTMLDivElement>(null);
+  const viewer = useRef<Cesium.Viewer | null>(null);
+  const drawingHandler = useRef<Cesium.ScreenSpaceEventHandler | null>(null);
+  const currentPolygon = useRef<Cesium.Entity | null>(null);
+  const currentPositions = useRef<Cesium.Cartesian3[]>([]);
+  const imageEntities = useRef<Cesium.Entity[]>([]);
+  const labelEntities = useRef<Cesium.Entity[]>([]);
+  
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentAOI, setCurrentAOI] = useState<any>(null);
   const [currentImageResult, setCurrentImageResult] = useState<any>(null);
   const [is3DMode, setIs3DMode] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [isDrawing, setIsDrawing] = useState(false);
   const imageCache = useRef<Map<string, string>>(new Map());
+
   console.log("MapView render - mapLoaded:", mapLoaded);
+
   useEffect(() => {
-    if (!mapContainer.current || map.current) return;
+    if (!cesiumContainer.current || viewer.current) return;
+
+    console.log("🗺️ Inicializando Cesium...");
     
-    console.log("🗺️ Inicializando Mapbox...");
-    mapboxgl.accessToken = getMapboxToken();
-    
+    // Set Cesium Ion token
+    Cesium.Ion.defaultAccessToken = getCesiumToken();
+
     try {
-      map.current = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: "mapbox://styles/mapbox/dark-v11",
-        center: [-48.5044, -1.4558],
-        zoom: 11,
-        pitch: 0,
-        antialias: true
+      const viewerInstance = new Cesium.Viewer(cesiumContainer.current, {
+        baseLayerPicker: false,
+        geocoder: false,
+        homeButton: true,
+        sceneModePicker: false,
+        navigationHelpButton: false,
+        animation: false,
+        timeline: false,
+        fullscreenButton: false,
       });
+
+      viewer.current = viewerInstance;
       
-      console.log("✅ Mapbox map criado");
+      // Set initial camera position (Belém, Brazil)
+      viewerInstance.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(-48.5044, -1.4558, 50000),
+      });
 
-      // Add navigation controls
-      map.current.addControl(new mapboxgl.NavigationControl({
-        visualizePitch: true
-      }), "top-right");
+      // Enable lighting
+      viewerInstance.scene.globe.enableLighting = true;
 
-      // Add scale control
-      map.current.addControl(new mapboxgl.ScaleControl({
-        maxWidth: 100,
-        unit: "metric"
-      }), "bottom-right");
+      console.log("✅ Cesium viewer criado");
+      setMapLoaded(true);
 
-      // Add drawing controls
-      draw.current = new MapboxDraw({
-        displayControlsDefault: false,
-        controls: {
-          polygon: true,
-          trash: false
+      // Add example polygon for Belém baixadas
+      const belemPolygon = viewerInstance.entities.add({
+        name: "Região da Baixada - Fazendinha",
+        polygon: {
+          hierarchy: Cesium.Cartesian3.fromDegreesArray([
+            -48.52, -1.47,
+            -48.49, -1.47,
+            -48.49, -1.44,
+            -48.52, -1.44
+          ]),
+          material: Cesium.Color.CYAN.withAlpha(0.2),
+          outline: true,
+          outlineColor: Cesium.Color.CYAN,
+          outlineWidth: 2,
         },
-        defaultMode: 'simple_select'
-      });
-      map.current.addControl(draw.current, "top-left");
-
-      // Listen to draw events
-      map.current.on('draw.create', updateArea);
-      map.current.on('draw.delete', updateArea);
-      map.current.on('draw.update', updateArea);
-      
-      function updateArea() {
-        const data = draw.current?.getAll();
-        if (data && data.features.length > 0) {
-          if (data.features.length > 1) {
-            const latestFeature = data.features[data.features.length - 1];
-            data.features.slice(0, -1).forEach(feature => {
-              draw.current?.delete(feature.id as string);
-            });
-            setCurrentAOI(latestFeature.geometry);
-            onAOIChange(latestFeature.geometry);
-            console.log("📍 AOI updated (latest only):", latestFeature.geometry);
-          } else {
-            const polygon = data.features[0];
-            setCurrentAOI(polygon.geometry);
-            onAOIChange(polygon.geometry);
-            console.log("📍 AOI updated:", polygon.geometry);
-          }
-        } else {
-          setCurrentAOI(null);
-          onAOIChange(null);
-          removeImageOverlay();
-        }
-      }
-      
-      map.current.on("load", () => {
-        console.log("✅ Mapbox map carregado completamente");
-        setMapLoaded(true);
-
-        if (map.current) {
-          // Add example polygon for Belém baixadas
-          map.current.addSource("belem-areas", {
-            type: "geojson",
-            data: {
-              type: "FeatureCollection",
-              features: [{
-                type: "Feature",
-                properties: {
-                  name: "Região da Baixada - Fazendinha",
-                  population: 45000,
-                  floodRisk: "Alto",
-                  avgNDVI: 0.35,
-                  avgLST: 32.5,
-                  sanitation: 45
-                },
-                geometry: {
-                  type: "Polygon",
-                  coordinates: [[[-48.52, -1.47], [-48.49, -1.47], [-48.49, -1.44], [-48.52, -1.44], [-48.52, -1.47]]]
-                }
-              }]
-            }
-          });
-          
-          map.current.addLayer({
-            id: "belem-areas-fill",
-            type: "fill",
-            source: "belem-areas",
-            paint: {
-              "fill-color": "#1eb8b8",
-              "fill-opacity": 0.2
-            }
-          });
-          
-          map.current.addLayer({
-            id: "belem-areas-outline",
-            type: "line",
-            source: "belem-areas",
-            paint: {
-              "line-color": "#1eb8b8",
-              "line-width": 2
-            }
-          });
-
-          map.current.on("click", "belem-areas-fill", e => {
-            if (e.features && e.features[0]) {
-              onFeatureClick(e.features[0].properties);
-            }
-          });
-
-          map.current.on("mouseenter", "belem-areas-fill", () => {
-            if (map.current) map.current.getCanvas().style.cursor = "pointer";
-          });
-          
-          map.current.on("mouseleave", "belem-areas-fill", () => {
-            if (map.current) map.current.getCanvas().style.cursor = "";
-          });
+        properties: {
+          name: "Região da Baixada - Fazendinha",
+          population: 45000,
+          floodRisk: "Alto",
+          avgNDVI: 0.35,
+          avgLST: 32.5,
+          sanitation: 45
         }
       });
-      
-      map.current.on("error", (e) => {
-        console.error("❌ Mapbox error:", e);
-      });
-      
+
+      // Handle clicks on entities
+      const clickHandler = new Cesium.ScreenSpaceEventHandler(viewerInstance.scene.canvas);
+      clickHandler.setInputAction((click: any) => {
+        const pickedObject = viewerInstance.scene.pick(click.position);
+        if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.properties) {
+          const props: any = {};
+          const propertyNames = pickedObject.id.properties.propertyNames;
+          propertyNames.forEach((name: string) => {
+            props[name] = pickedObject.id.properties[name]._value;
+          });
+          onFeatureClick(props);
+        }
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
     } catch (error) {
-      console.error("❌ Erro ao inicializar mapa:", error);
+      console.error("❌ Erro ao inicializar Cesium:", error);
       toast.error("Erro ao carregar o mapa");
     }
-    
+
     return () => {
       console.log("🧹 Limpando mapa...");
-      map.current?.remove();
+      if (drawingHandler.current) {
+        drawingHandler.current.destroy();
+      }
+      viewer.current?.destroy();
     };
   }, []);
 
-  // Update layer visibility and opacity based on selected layers
+  // Start drawing polygon
+  const startDrawing = () => {
+    if (!viewer.current || isDrawing) return;
+
+    setIsDrawing(true);
+    currentPositions.current = [];
+
+    // Remove previous polygon
+    if (currentPolygon.current) {
+      viewer.current.entities.remove(currentPolygon.current);
+      currentPolygon.current = null;
+    }
+
+    const viewerInstance = viewer.current;
+    drawingHandler.current = new Cesium.ScreenSpaceEventHandler(viewerInstance.scene.canvas);
+
+    // Left click to add point
+    drawingHandler.current.setInputAction((click: any) => {
+      const earthPosition = viewerInstance.camera.pickEllipsoid(
+        click.position,
+        viewerInstance.scene.globe.ellipsoid
+      );
+
+      if (earthPosition) {
+        currentPositions.current.push(earthPosition);
+
+        // Create or update polygon
+        if (currentPolygon.current) {
+          viewer.current?.entities.remove(currentPolygon.current);
+        }
+
+        if (currentPositions.current.length >= 2) {
+          currentPolygon.current = viewerInstance.entities.add({
+            polygon: {
+              hierarchy: new Cesium.PolygonHierarchy(currentPositions.current),
+              material: Cesium.Color.YELLOW.withAlpha(0.3),
+              outline: true,
+              outlineColor: Cesium.Color.YELLOW,
+              outlineWidth: 2,
+            },
+          });
+        }
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    // Right click to finish
+    drawingHandler.current.setInputAction(() => {
+      if (currentPositions.current.length >= 3) {
+        finishDrawing();
+      } else {
+        toast.error("Desenhe pelo menos 3 pontos");
+      }
+    }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+
+    toast.info("Desenhe o polígono - Clique direito para finalizar");
+  };
+
+  const finishDrawing = () => {
+    if (currentPositions.current.length < 3) return;
+
+    // Convert Cartesian3 positions to GeoJSON
+    const coordinates = currentPositions.current.map(pos => {
+      const cartographic = Cesium.Cartographic.fromCartesian(pos);
+      return [
+        Cesium.Math.toDegrees(cartographic.longitude),
+        Cesium.Math.toDegrees(cartographic.latitude)
+      ];
+    });
+    
+    // Close the polygon
+    coordinates.push(coordinates[0]);
+
+    const geojson = {
+      type: "Polygon",
+      coordinates: [coordinates]
+    };
+
+    setCurrentAOI(geojson);
+    onAOIChange(geojson);
+    console.log("📍 AOI updated:", geojson);
+
+    if (drawingHandler.current) {
+      drawingHandler.current.destroy();
+      drawingHandler.current = null;
+    }
+
+    setIsDrawing(false);
+    toast.success("Área de interesse definida");
+  };
+
+  // Update layer visibility and opacity
   useEffect(() => {
-    if (!mapLoaded || !map.current || !currentAOI || !currentImageResult) return;
+    if (!mapLoaded || !viewer.current || !currentAOI || !currentImageResult) return;
     const activeLayers = layers.filter(l => l.enabled);
     console.log("Active layers:", activeLayers.map(l => l.name));
 
-    // Update image based on active layers
     updateImageOverlay(currentImageResult, activeLayers);
   }, [layers, mapLoaded, currentAOI, currentImageResult]);
+
   const clearAllPolygons = () => {
-    if (draw.current) {
-      draw.current.deleteAll();
-      setCurrentAOI(null);
-      setCurrentImageResult(null);
-      removeImageOverlay();
-      toast.success("Todos os polígonos removidos");
+    if (currentPolygon.current && viewer.current) {
+      viewer.current.entities.remove(currentPolygon.current);
+      currentPolygon.current = null;
     }
+    currentPositions.current = [];
+    setCurrentAOI(null);
+    setCurrentImageResult(null);
+    removeImageOverlay();
+    toast.success("Todos os polígonos removidos");
   };
+
   const toggle3DMode = () => {
-    if (!map.current || !mapLoaded) {
+    if (!viewer.current || !mapLoaded) {
       console.log("Map not ready for 3D toggle");
       return;
     }
@@ -218,231 +257,41 @@ const MapView = ({
       if (new3DState) {
         console.log("Activating 3D mode...");
         
-        // Verificar satélites compatíveis com modo 3D
-        const compatible3DSatellites = [
-          'nasa-worldview', 
-          'usgs-imagery', 
-          'sentinel1-vv', 
-          'sentinel1-vh',
-          'flood',
-          'water-index'
-        ];
-        
-        const activeLayers = layers.filter(l => l.enabled);
-        const activeIncompatible = activeLayers
-          .filter(layer => !compatible3DSatellites.includes(layer.id))
-          .map(layer => layer.name);
-
-        if (activeIncompatible.length > 0) {
-          toast.info(
-            `Modo 3D ativado`,
-            {
-              description: `Apenas satélites compatíveis (NASA Worldview, USGS, Sentinel-1) serão exibidos no modo 3D`
-            }
-          );
-        }
-        
-        // Add terrain source
-        if (!map.current.getSource('mapbox-dem')) {
-          map.current.addSource('mapbox-dem', {
-            type: 'raster-dem',
-            url: 'mapbox://mapbox.terrain-rgb',
-            tileSize: 512,
-            maxzoom: 14
-          });
-        }
-
-        // Set terrain
-        map.current.setTerrain({ 
-          source: 'mapbox-dem', 
-          exaggeration: 2.5 
+        // Enable terrain
+        Cesium.createWorldTerrainAsync({
+          requestWaterMask: true,
+          requestVertexNormals: true
+        }).then(terrainProvider => {
+          if (viewer.current) {
+            viewer.current.terrainProvider = terrainProvider;
+          }
         });
 
-        // Add elevation-based fill layer
-        // Red = low elevation (valleys), Blue = high elevation (peaks)
-        if (!map.current.getLayer('elevation-fill')) {
-          map.current.addLayer({
-            id: 'elevation-fill',
-            type: 'fill-extrusion',
-            source: 'mapbox-dem',
-            paint: {
-              'fill-extrusion-color': [
-                'interpolate',
-                ['linear'],
-                ['get', 'ele'],
-                0, '#ff0000',      // Sea level - Red
-                500, '#ffaa00',    // 500m - Orange
-                1000, '#ffff00',   // 1000m - Yellow
-                2000, '#00ff00',   // 2000m - Green
-                3000, '#00aaff',   // 3000m - Light Blue
-                5000, '#0000ff'    // 5000m+ - Deep Blue
-              ],
-              'fill-extrusion-opacity': 0.6,
-              'fill-extrusion-height': ['get', 'ele']
-            }
-          });
-        }
-        
-        // Add hillshade for terrain relief
-        if (!map.current.getLayer('hillshade')) {
-          map.current.addLayer({
-            id: 'hillshade',
-            type: 'hillshade',
-            source: 'mapbox-dem',
-            paint: {
-              'hillshade-exaggeration': 0.5,
-              'hillshade-shadow-color': '#000000',
-              'hillshade-highlight-color': '#ffffff'
-            }
-          });
-        }
-
-        // Add 3D buildings with elevation-based coloring
-        if (!map.current.getLayer('3d-buildings')) {
-          map.current.addLayer({
-            id: '3d-buildings',
-            source: 'composite',
-            'source-layer': 'building',
-            filter: ['==', 'extrude', 'true'],
-            type: 'fill-extrusion',
-            minzoom: 12,
-            paint: {
-              'fill-extrusion-color': [
-                'interpolate',
-                ['linear'],
-                ['get', 'height'],
-                0, '#e74c3c',    // Red for low buildings
-                50, '#f39c12',   // Yellow for medium
-                100, '#3498db'   // Blue for tall buildings
-              ],
-              'fill-extrusion-height': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                12, 0,
-                12.05, ['get', 'height']
-              ],
-              'fill-extrusion-base': [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                12, 0,
-                12.05, ['get', 'min_height']
-              ],
-              'fill-extrusion-opacity': 0.7
-            }
-          });
-        }
-
-        // Add NASA Worldview (MODIS) layer - using correct date format
-        const today = new Date().toISOString().split('T')[0];
-        if (!map.current.getSource('nasa-worldview')) {
-          map.current.addSource('nasa-worldview', {
-            type: 'raster',
-            tiles: [
-              `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${today}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`
-            ],
-            tileSize: 256
-          });
-        }
-
-        if (!map.current.getLayer('nasa-worldview-layer')) {
-          map.current.addLayer({
-            id: 'nasa-worldview-layer',
-            type: 'raster',
-            source: 'nasa-worldview',
-            paint: {
-              'raster-opacity': 0.5
-            }
-          }, 'hillshade');
-        }
-
-        // Add USGS Imagery layer
-        if (!map.current.getSource('usgs-imagery')) {
-          map.current.addSource('usgs-imagery', {
-            type: 'raster',
-            tiles: [
-              'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}'
-            ],
-            tileSize: 256
-          });
-        }
-
-        if (!map.current.getLayer('usgs-imagery-layer')) {
-          map.current.addLayer({
-            id: 'usgs-imagery-layer',
-            type: 'raster',
-            source: 'usgs-imagery',
-            paint: {
-              'raster-opacity': 0.3
-            }
-          }, 'hillshade');
-        }
-
-        // Add sky layer
-        if (!map.current.getLayer('sky')) {
-          map.current.addLayer({
-            id: 'sky',
-            type: 'sky',
-            paint: {
-              'sky-type': 'atmosphere',
-              'sky-atmosphere-sun': [0.0, 90.0],
-              'sky-atmosphere-sun-intensity': 15
-            }
-          });
-        }
-
-        // Animate camera
-        map.current.easeTo({
-          pitch: 70,
-          bearing: -30,
-          duration: 2000
+        // Tilt camera for 3D view
+        const camera = viewer.current.camera;
+        camera.setView({
+          orientation: {
+            heading: camera.heading,
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0.0
+          }
         });
 
         toast.success("Modo 3D ativado");
       } else {
         console.log("Deactivating 3D mode...");
         
-        // Remove terrain first
-        if (map.current.getTerrain()) {
-          map.current.setTerrain(null);
-        }
-
-        // Remove 3D layers in reverse order
-        const layersToRemove = ['sky', '3d-buildings', 'usgs-imagery-layer', 'nasa-worldview-layer', 'hillshade'];
-        layersToRemove.forEach(layerId => {
-          if (map.current?.getLayer(layerId)) {
-            try {
-              map.current.removeLayer(layerId);
-              console.log(`Removed layer: ${layerId}`);
-            } catch (e) {
-              console.warn(`Could not remove layer ${layerId}:`, e);
-            }
-          }
-        });
-
-        // Wait a bit before removing sources
-        setTimeout(() => {
-          if (!map.current) return;
-          
-          const sourcesToRemove = ['usgs-imagery', 'nasa-worldview', 'mapbox-dem'];
-          sourcesToRemove.forEach(sourceId => {
-            if (map.current?.getSource(sourceId)) {
-              try {
-                map.current.removeSource(sourceId);
-                console.log(`Removed source: ${sourceId}`);
-              } catch (e) {
-                console.warn(`Could not remove source ${sourceId}:`, e);
-              }
-            }
-          });
-        }, 100);
+        // Disable terrain
+        viewer.current.terrainProvider = new Cesium.EllipsoidTerrainProvider();
 
         // Reset camera
-        map.current.easeTo({
-          pitch: 0,
-          bearing: 0,
-          duration: 1000
+        const camera = viewer.current.camera;
+        camera.setView({
+          orientation: {
+            heading: camera.heading,
+            pitch: Cesium.Math.toRadians(-90),
+            roll: 0.0
+          }
         });
 
         toast.success("Modo 2D ativado");
@@ -452,81 +301,67 @@ const MapView = ({
       toast.error("Erro ao alternar modo 3D");
     }
   };
+
   const removeImageOverlay = () => {
-    if (!map.current) return;
-    const mapInstance = map.current;
+    if (!viewer.current) return;
 
-    // Remover todos os markers
-    markersRef.current.forEach(marker => marker.remove());
-    markersRef.current = [];
+    // Remove all image entities
+    imageEntities.current.forEach(entity => {
+      viewer.current?.entities.remove(entity);
+    });
+    imageEntities.current = [];
 
-    // Remove all SAR overlays (pode ter múltiplos agora)
-    let layerIndex = 0;
-    while (true) {
-      const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
-      const sourceId = `${layerId}-source`;
-      try {
-        if (mapInstance.getLayer(layerId)) {
-          mapInstance.removeLayer(layerId);
-          if (mapInstance.getSource(sourceId)) {
-            mapInstance.removeSource(sourceId);
-          }
-          layerIndex++;
-        } else {
-          break;
-        }
-      } catch (e) {
-        break;
-      }
-    }
-    console.log("🗑️ All image overlays and markers removed");
+    // Remove all label entities
+    labelEntities.current.forEach(entity => {
+      viewer.current?.entities.remove(entity);
+    });
+    labelEntities.current = [];
+
+    console.log("🗑️ All image overlays and labels removed");
   };
+
   const clipImageToPolygon = async (imageUrl: string, bbox: number[], polygonCoords: number[][]): Promise<string> => {
     const cacheKey = `${imageUrl}-${JSON.stringify(polygonCoords)}`;
 
-    // Verificar cache
     if (imageCache.current.has(cacheKey)) {
       console.log("✅ Using cached clipped image");
       return imageCache.current.get(cacheKey)!;
     }
+
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
+      
       img.onload = () => {
         try {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           if (!ctx) throw new Error('Could not get canvas context');
 
-          // Configurar tamanho do canvas baseado na imagem
           canvas.width = img.width;
           canvas.height = img.height;
+
           const [west, south, east, north] = bbox;
           const bboxWidth = east - west;
           const bboxHeight = north - south;
 
-          // Converter coordenadas do polígono para pixels do canvas
           const pixelCoords = polygonCoords.map(([lng, lat]) => {
             const x = (lng - west) / bboxWidth * canvas.width;
             const y = (north - lat) / bboxHeight * canvas.height;
             return [x, y];
           });
 
-          // Aplicar clip path do polígono
           ctx.beginPath();
           pixelCoords.forEach(([x, y], i) => {
-            if (i === 0) ctx.moveTo(x, y);else ctx.lineTo(x, y);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
           });
           ctx.closePath();
           ctx.clip();
 
-          // Desenhar imagem com clip aplicado
           ctx.drawImage(img, 0, 0);
 
-          // Converter para data URL
           const clippedImageUrl = canvas.toDataURL('image/png');
-
-          // Armazenar em cache
           imageCache.current.set(cacheKey, clippedImageUrl);
           console.log("✅ Image clipped and cached");
           resolve(clippedImageUrl);
@@ -535,12 +370,12 @@ const MapView = ({
           reject(error);
         }
       };
+
       img.onerror = () => reject(new Error('Failed to load image'));
       img.src = imageUrl;
     });
   };
 
-  // Função auxiliar para obter nome abreviado da coleção
   const getCollectionDisplayName = (collection: string) => {
     const names: Record<string, string> = {
       'sentinel-1-grd': 'S1',
@@ -558,11 +393,10 @@ const MapView = ({
     };
     return names[collection] || collection;
   };
-  const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0, collection?: string) => {
-    if (!map.current || !result || !currentAOI) return;
-    const mapInstance = map.current;
 
-    // Mapear coleção para camadas correspondentes
+  const updateImageOverlay = async (result: any, activeLayers: Layer[], layerIndex: number = 0, collection?: string) => {
+    if (!viewer.current || !result || !currentAOI) return;
+
     const collectionToLayers: Record<string, string[]> = {
       'sentinel-1-grd': ['sentinel1-vv', 'sentinel1-vh'],
       'sentinel-2-l2a': ['sentinel2'],
@@ -576,12 +410,10 @@ const MapView = ({
       'modis-11A1-061': ['modis-temperature'],
       'hgb': ['global-biomass'],
       'esa-worldcover': ['esa-worldcover'],
-      // índices processados
       'index-ndvi': ['ndvi'],
       'index-flood': ['flood']
     };
 
-    // Verificar se alguma camada correspondente à coleção está ativa
     const requiredLayers = collectionToLayers[collection || result.collection] || [];
     const hasActiveLayer = requiredLayers.some(layerId => 
       activeLayers.some(l => l.id === layerId)
@@ -596,7 +428,7 @@ const MapView = ({
     let opacity = 0.75;
     console.log("🔍 updateImageOverlay - result:", result, "collection:", collection);
 
-    // Carregar imagem baseada na coleção
+    // Get image URL based on collection
     if (collection === 'sentinel-1-grd' || result.collection === 'sentinel-1-grd') {
       const hasSentinel1VV = activeLayers.some(l => l.id === 'sentinel1-vv');
       const hasSentinel1VH = activeLayers.some(l => l.id === 'sentinel1-vh');
@@ -616,166 +448,94 @@ const MapView = ({
     } else if (collection === 'sentinel-2-l2a') {
       imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=sentinel-2-l2a&item=${result.id}&assets=visual&format=png`;
       opacity = (activeLayers.find(l => l.id === 'sentinel2')?.opacity || 80) / 100;
-      console.log("✅ Using Sentinel-2:", imageUrl);
     } else if (collection === 'landsat-c2-l2') {
-      imageUrl = result.assets?.rendered_preview?.href || result.assets?.visual?.href || `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=landsat-c2-l2&item=${result.id}&assets=red&assets=green&assets=blue&rescale=0,30000&format=png`;
+      imageUrl = result.assets?.rendered_preview?.href || `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=landsat-c2-l2&item=${result.id}&assets=red&assets=green&assets=blue&rescale=0,30000&format=png`;
       opacity = (activeLayers.find(l => l.id === 'landsat')?.opacity || 80) / 100;
-      console.log("✅ Using Landsat:", imageUrl);
-    } else if (collection === 'cop-dem-glo-30') {
-      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=cop-dem-glo-30&item=${result.id}&assets=data&colormap=terrain&rescale=-100,3000&format=png`;
-      opacity = (activeLayers.find(l => l.id === 'dem')?.opacity || 70) / 100;
-      console.log("✅ Using DEM:", imageUrl);
-    } else if (collection === 'nasadem') {
-      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=nasadem&item=${result.id}&assets=elevation&colormap=terrain&rescale=0,500&format=png`;
-      opacity = (activeLayers.find(l => l.id === 'nasadem')?.opacity || 70) / 100;
-      console.log("✅ Using NASA DEM:", imageUrl);
-    } else if (collection === 'alos-dem') {
-      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=alos-dem&item=${result.id}&assets=data&colormap=terrain&rescale=0,500&format=png`;
-      opacity = (activeLayers.find(l => l.id === 'alosdem')?.opacity || 70) / 100;
-      console.log("✅ Using ALOS DEM:", imageUrl);
-    } else if (collection === 'modis-09Q1-061') {
-      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-09Q1-061&item=${result.id}&assets=sur_refl_b01&assets=sur_refl_b02&colormap=viridis&format=png`;
-      opacity = (activeLayers.find(l => l.id === 'modis-reflectance')?.opacity || 80) / 100;
-      console.log("✅ Using MODIS Reflectance:", imageUrl);
-    } else if (collection === 'modis-13A1-061') {
-      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-13A1-061&item=${result.id}&assets=500m_16_days_NDVI&colormap=greens&rescale=0,10000&format=png`;
-      opacity = (activeLayers.find(l => l.id === 'modis-vegetation')?.opacity || 75) / 100;
-      console.log("✅ Using MODIS Vegetation:", imageUrl);
-    } else if (collection === 'modis-17A3HGF-061') {
-      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-17A3HGF-061&item=${result.id}&assets=Npp&colormap=greens&rescale=0,5000&format=png`;
-      opacity = (activeLayers.find(l => l.id === 'modis-biomass')?.opacity || 70) / 100;
-      console.log("✅ Using MODIS Biomass:", imageUrl);
-    } else if (collection === 'modis-11A1-061') {
-      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=modis-11A1-061&item=${result.id}&assets=LST_Day_1km&colormap=thermal&rescale=13000,16000&format=png`;
-      opacity = (activeLayers.find(l => l.id === 'modis-temperature')?.opacity || 65) / 100;
-      console.log("✅ Using MODIS Temperature:", imageUrl);
-    } else if (collection === 'hgb') {
-      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=hgb&item=${result.id}&assets=aboveground_biomass&colormap=viridis&rescale=0,300&format=png`;
-      opacity = (activeLayers.find(l => l.id === 'global-biomass')?.opacity || 70) / 100;
-      console.log("✅ Using Global Biomass:", imageUrl);
-    } else if (collection === 'esa-worldcover') {
-      imageUrl = `https://planetarycomputer.microsoft.com/api/data/v1/item/preview.png?collection=esa-worldcover&item=${result.id}&assets=map&format=png`;
-      opacity = (activeLayers.find(l => l.id === 'esa-worldcover')?.opacity || 75) / 100;
-      console.log("✅ Using ESA WorldCover:", imageUrl);
-    } else if (collection === 'index-ndvi') {
-      // Resultado de process-water-index traz tileUrl; vamos renderizar uma imagem preview do tile para recorte
-      imageUrl = `${result.tileUrl.replace('{z}/{x}/{y}', '8/156/234')}`; // tile sample
-      opacity = (activeLayers.find(l => l.id === 'ndvi')?.opacity || 70) / 100;
-      console.log("✅ Using NDVI tiles:", imageUrl);
-    } else if (collection === 'index-flood') {
-      imageUrl = `${result.tileUrl.replace('{z}/{x}/{y}', '8/156/234')}`;
-      opacity = (activeLayers.find(l => l.id === 'flood')?.opacity || 65) / 100;
-      console.log("✅ Using SAR water tiles:", imageUrl);
-    } else {
-      console.log("⚠️ No matching collection for active layers");
-      return;
     }
+
     if (!imageUrl) {
       console.error("❌ No image URL available");
       return;
     }
-    console.log("🌍 Image URL to load:", imageUrl);
-    const layerId = layerIndex === 0 ? 'sar-overlay' : `sar-overlay-${layerIndex}`;
-    const sourceId = `${layerId}-source`;
-    try {
-      // Remove old overlay if exists
-      if (mapInstance.getLayer(layerId)) {
-        mapInstance.removeLayer(layerId);
-        console.log(`🗑️ Removed old layer: ${layerId}`);
-      }
-      if (mapInstance.getSource(sourceId)) {
-        mapInstance.removeSource(sourceId);
-        console.log(`🗑️ Removed old source: ${sourceId}`);
-      }
-      const [west, south, east, north] = result.bbox;
-      console.log("📦 BBox:", {
-        west,
-        south,
-        east,
-        north
-      });
 
-      // Recortar imagem pelo polígono se disponível
+    console.log("🌍 Image URL to load:", imageUrl);
+
+    try {
+      const [west, south, east, north] = result.bbox;
+      
       let finalImageUrl = imageUrl;
-      if (currentAOI?.geometry?.coordinates?.[0]) {
-        const polygonCoords = currentAOI.geometry.coordinates[0];
+      if (currentAOI?.coordinates?.[0]) {
+        const polygonCoords = currentAOI.coordinates[0];
         finalImageUrl = await clipImageToPolygon(imageUrl, result.bbox, polygonCoords);
         console.log("✂️ Image clipped to polygon");
-      } else {
-        console.log("⚠️ No AOI polygon available, using full image");
       }
 
-      // Add image source
-      mapInstance.addSource(sourceId, {
-        type: 'image',
-        url: finalImageUrl,
-        coordinates: [[west, north], [east, north], [east, south], [west, south]]
+      // Add image as rectangle entity  
+      const material = new Cesium.ImageMaterialProperty({
+        image: finalImageUrl,
+        transparent: true
       });
-      console.log(`✅ Added clipped image source: ${sourceId}`);
-
-      // Add raster layer with dynamic opacity
-      // Colocar acima do terreno 3D se existir
-      const layers = mapInstance.getStyle().layers;
-      const firstSymbolId = layers?.find(layer => layer.type === 'symbol')?.id;
-      mapInstance.addLayer({
-        id: layerId,
-        type: 'raster',
-        source: sourceId,
-        paint: {
-          'raster-opacity': opacity,
-          'raster-fade-duration': 300,
-          'raster-resampling': 'linear'
+      
+      const imageEntity = viewer.current!.entities.add({
+        rectangle: {
+          coordinates: Cesium.Rectangle.fromDegrees(west, south, east, north),
+          material: new Cesium.ColorMaterialProperty(
+            new Cesium.Color(1, 1, 1, opacity)
+          )
         }
-      }, firstSymbolId);
+      });
 
-      // Adicionar marker com badge identificando o satélite
-      const [minLng, minLat, maxLng, maxLat] = result.bbox;
-      const centerLng = (minLng + maxLng) / 2;
-      const centerLat = (minLat + maxLat) / 2;
-      const el = document.createElement('div');
-      el.className = 'satellite-badge';
-      el.innerHTML = `<span class="badge-content">${getCollectionDisplayName(collection || result.collection)}</span>`;
-      el.style.cssText = `
-        background: hsl(var(--primary));
-        color: hsl(var(--primary-foreground));
-        padding: 4px 10px;
-        border-radius: 6px;
-        font-size: 11px;
-        font-weight: 600;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-        cursor: pointer;
-        white-space: nowrap;
-        border: 1px solid hsl(var(--primary) / 0.5);
-      `;
-      const marker = new mapboxgl.Marker({
-        element: el
-      }).setLngLat([centerLng, centerLat]).addTo(mapInstance);
-      markersRef.current.push(marker);
-      console.log(`✅ Image overlay ${layerIndex} added successfully with badge - opacity: ${opacity}`);
-      toast.success("Imagem recortada sobreposta ao mapa", {
+      // Override with image material
+      (imageEntity.rectangle as any).material = material;
+
+      imageEntities.current.push(imageEntity);
+
+      // Add label at center
+      const centerLng = (west + east) / 2;
+      const centerLat = (south + north) / 2;
+
+      const labelEntity = viewer.current!.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(centerLng, centerLat, 1000),
+        label: {
+          text: getCollectionDisplayName(collection || result.collection),
+          font: '14px sans-serif',
+          fillColor: Cesium.Color.WHITE,
+          outlineColor: Cesium.Color.BLACK,
+          outlineWidth: 2,
+          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+          pixelOffset: new Cesium.Cartesian2(0, 0),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY
+        }
+      });
+
+      labelEntities.current.push(labelEntity);
+
+      console.log(`✅ Image overlay ${layerIndex} added successfully - opacity: ${opacity}`);
+      toast.success("Imagem sobreposta ao mapa", {
         description: `${getCollectionDisplayName(collection || result.collection)} - Opacidade: ${Math.round(opacity * 100)}%`
       });
     } catch (error) {
       console.error(`❌ Error updating image overlay ${layerIndex}:`, error);
-      toast.error("Erro ao carregar overlay", {
-        description: "Verifique o console para detalhes"
-      });
+      toast.error("Erro ao carregar overlay");
     }
   };
+
   const handleResultSelect = async (result: any, collection?: string, isMultiple: boolean = false, index: number = 0) => {
     console.log("🎯 Selected result:", result, "Collection:", collection);
-    if (!map.current || !mapLoaded) {
+    if (!viewer.current || !mapLoaded) {
       toast.error("Aguarde o mapa carregar");
       return;
     }
+
     try {
       if (!isMultiple) {
-        // Single image: replace current
         setCurrentImageResult(result);
         removeImageOverlay();
       }
+
       const activeLayers = layers.filter(l => l.enabled);
       await updateImageOverlay(result, activeLayers, index, collection);
+
       if (!isMultiple) {
         toast.success("Imagem carregada", {
           description: `${result.collection} - ${new Date(result.datetime).toLocaleDateString('pt-BR')}`
@@ -796,24 +556,39 @@ const MapView = ({
       }
     }
   };
+
+  const getActiveCollections = () => {
+    const activeLayers = layers.filter(l => l.enabled);
+    const collections: string[] = [];
+
+    if (activeLayers.some(l => l.id === 'sentinel2')) collections.push('sentinel-2-l2a');
+    if (activeLayers.some(l => l.id === 'landsat')) collections.push('landsat-c2-l2');
+    if (activeLayers.some(l => l.id === 'dem')) collections.push('cop-dem-glo-30');
+
+    return collections;
+  };
+
   const handleSearch = async (startDate: string, endDate: string) => {
     console.log("🔍 handleSearch called - currentAOI:", currentAOI);
+    
     if (!currentAOI) {
       toast.error("Defina uma área de interesse no mapa", {
-        description: "Use a ferramenta de desenho para criar um polígono"
+        description: "Use o botão de desenho para criar um polígono"
       });
       return;
     }
+
     const activeLayers = layers.filter(l => l.enabled);
     const hasSentinel1 = activeLayers.some(l => l.id.startsWith('sentinel1'));
     const activeCollections = getActiveCollections();
+
     setIsSearching(true);
+
     try {
       const startISO = new Date(startDate + 'T00:00:00Z').toISOString();
       const endISO = new Date(endDate + 'T23:59:59Z').toISOString();
       const searchPromises = [];
 
-      // Buscar Sentinel-1 se estiver ativo
       if (hasSentinel1) {
         const sentinel1Promise = supabase.functions.invoke('search-sentinel1', {
           body: {
@@ -830,7 +605,6 @@ const MapView = ({
         searchPromises.push(sentinel1Promise);
       }
 
-      // Buscar outras coleções ativas
       for (const collection of activeCollections) {
         if (collection !== 'sentinel-1-grd') {
           const promise = supabase.functions.invoke('search-planetary-data', {
@@ -849,192 +623,118 @@ const MapView = ({
         }
       }
 
-      // Integração de índices (Planetary Computer TiTiler via process-water-index)
-      const hasNDVI = activeLayers.some(l => l.id === 'ndvi');
-      if (hasNDVI) {
-        const ndviPromise = supabase.functions.invoke('process-water-index', {
-          body: {
-            aoi: currentAOI,
-            startDate: startISO,
-            endDate: endISO,
-            collection: 'sentinel-2-l2a',
-            indexType: 'ndvi',
-            threshold: 0.2
-          }
-        }).then(response => ({
-          ...response,
-          collection: 'index-ndvi'
-        }));
-        searchPromises.push(ndviPromise);
-      }
-
-      const hasFlood = activeLayers.some(l => l.id === 'flood');
-      if (hasFlood && hasSentinel1) {
-        const floodPromise = supabase.functions.invoke('process-water-index', {
-          body: {
-            aoi: currentAOI,
-            startDate: startISO,
-            endDate: endISO,
-            collection: 'sentinel-1-grd',
-            indexType: 'sar-water',
-            threshold: -15
-          }
-        }).then(response => ({
-          ...response,
-          collection: 'index-flood'
-        }));
-        searchPromises.push(floodPromise);
-      }
-
-      // Executar todas as buscas em paralelo
       const results = await Promise.all(searchPromises);
 
-      // Agregar todos os resultados
       let allResults: any[] = [];
       let totalCount = 0;
-      let hasError = false;
+
       for (const result of results) {
         if (result.error) {
           console.error(`Erro ao buscar ${result.collection}:`, result.error);
-          hasError = true;
           continue;
         }
         if (result.data?.success && result.data.results?.length > 0) {
-          // Adicionar a coleção a cada resultado para identificação
           const resultsWithCollection = result.data.results.map((r: any) => ({
             ...r,
-            searchCollection: result.collection
+            collection: result.collection
           }));
           allResults = [...allResults, ...resultsWithCollection];
-          totalCount += result.data.count || result.data.results.length;
+          totalCount += result.data.results.length;
         }
       }
+
       if (allResults.length > 0) {
-        // Ordenar por data (mais recente primeiro)
-        allResults.sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime());
+        allResults.sort((a, b) => 
+          new Date(b.datetime).getTime() - new Date(a.datetime).getTime()
+        );
 
-        // Carregar o primeiro resultado
-        const firstResult = allResults[0];
-        await handleResultSelect(firstResult, firstResult.searchCollection);
-
-        // Passar todos os resultados para exibir na galeria
-        onSearchComplete(handleSearch, isSearching, allResults, handleResultSelect);
         toast.success(`${totalCount} imagens encontradas`, {
-          description: `${allResults.length} imagens de ${searchPromises.length} fonte(s)`
+          description: `Mostrando resultado mais recente`
         });
+
+        await handleResultSelect(allResults[0], allResults[0].collection);
+        onSearchComplete(handleSearch, false, allResults, handleResultSelect);
       } else {
-        onSearchComplete(handleSearch, isSearching, [], handleResultSelect);
-        toast.warning("Nenhuma imagem encontrada", {
-          description: hasError ? "Algumas buscas falharam. Tente outro período ou área" : "Tente outro período ou área"
+        toast.info("Nenhuma imagem encontrada", {
+          description: "Tente ajustar o período ou a área"
         });
+        onSearchComplete(handleSearch, false, [], handleResultSelect);
       }
-    } catch (error: any) {
-      console.error("Search error:", error);
+    } catch (error) {
+      console.error("❌ Search error:", error);
       toast.error("Erro na busca", {
-        description: error.message || "Tente novamente"
+        description: "Verifique o console para detalhes"
       });
+      onSearchComplete(handleSearch, false, [], handleResultSelect);
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Expose search function to parent - atualizar sempre que currentAOI ou isSearching mudar
   useEffect(() => {
-    onSearchComplete(handleSearch, isSearching, undefined, handleResultSelect);
-  }, [currentAOI, isSearching]);
-  const getActiveCollections = () => {
-    const activeLayers = layers.filter(l => l.enabled);
-    const collections: string[] = [];
+    onSearchComplete(handleSearch, isSearching);
+  }, [isSearching]);
 
-    // Mapear camadas ativas para suas coleções correspondentes
-    const layerToCollection: Record<string, string> = {
-      'sentinel2': 'sentinel-2-l2a',
-      'landsat': 'landsat-c2-l2',
-      'dem': 'cop-dem-glo-30',
-      'nasadem': 'nasadem',
-      'alosdem': 'alos-dem',
-      'modis-reflectance': 'modis-09Q1-061',
-      'modis-vegetation': 'modis-13A1-061',
-      'modis-biomass': 'modis-17A3HGF-061',
-      'modis-temperature': 'modis-11A1-061',
-      'global-biomass': 'hgb',
-      'esa-worldcover': 'esa-worldcover'
-    };
-
-    // Adicionar coleções de todas as camadas ativas
-    activeLayers.forEach(layer => {
-      const collection = layerToCollection[layer.id];
-      if (collection && !collections.includes(collection)) {
-        collections.push(collection);
-      }
-    });
-
-    // Adicionar Sentinel-2 como padrão APENAS quando nenhuma camada estiver ativa.
-    // Se apenas SAR (Sentinel-1) estiver ativo, não adicionar coleções ópticas por padrão.
-    if (collections.length === 0 && activeLayers.length === 0) {
-      collections.push('sentinel-2-l2a');
-    }
-    return collections;
-  };
-  const getActiveCollection = () => {
-    const collections = getActiveCollections();
-    if (collections.length > 0) return collections[0];
-    // Se não há coleções mapeadas e existe alguma camada Sentinel-1 ativa, priorizar Sentinel-1
-    const hasSentinel1Active = layers.some(l => l.enabled && l.id.startsWith('sentinel1'));
-    if (hasSentinel1Active) return 'sentinel-1-grd';
-    // Fallback geral quando nenhuma camada está ativa
-    return 'sentinel-2-l2a';
-  };
-  return <div className="absolute inset-0">
-      <div ref={mapContainer} className="w-full h-full" />
+  return (
+    <div className="relative w-full h-full">
+      <div ref={cesiumContainer} className="absolute inset-0" />
       
-      {/* Botões de controle - movidos para não conflitar com draw controls */}
-      <div className="absolute bottom-20 left-4 z-10 flex gap-2">
-        {currentAOI && <Button onClick={clearAllPolygons} variant="destructive" size="sm" className="shadow-elevated" title="Limpar Polígonos">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 6h18" />
-              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-            </svg>
-            <span className="ml-2">Limpar</span>
-          </Button>}
+      {/* Controls */}
+      <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={startDrawing}
+          disabled={isDrawing}
+          className="gap-2"
+        >
+          <Box className="h-4 w-4" />
+          {isDrawing ? "Desenhando..." : "Desenhar Área"}
+        </Button>
         
-        <Button onClick={toggle3DMode} variant={is3DMode ? "default" : "outline"} size="sm" className="shadow-elevated" title={is3DMode ? "Mudar para Modo 2D" : "Mudar para Modo 3D"}>
-          {is3DMode ? <>
-              <Box className="h-4 w-4" />
-              <span className="ml-2">2D</span>
-            </> : <>
-              <Cuboid className="h-4 w-4" />
-              <span className="ml-2">3D</span>
-            </>}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={clearAllPolygons}
+          className="gap-2"
+        >
+          Limpar Polígonos
+        </Button>
+
+        <Button
+          variant={is3DMode ? "default" : "secondary"}
+          size="sm"
+          onClick={toggle3DMode}
+          className="gap-2"
+        >
+          <Cuboid className="h-4 w-4" />
+          Modo {is3DMode ? "2D" : "3D"}
         </Button>
       </div>
-      
-      {/* Overlay watermark */}
-      <div className="absolute bottom-4 left-4 bg-card/80 backdrop-blur-sm px-3 py-1.5 rounded-md border border-border text-xs text-muted-foreground z-10">
-        <span className="font-semibold">Belém</span> - Monitoramento Geoespacial
+
+      {/* Watermark */}
+      <div className="absolute bottom-4 right-4 text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded z-10">
+        Powered by Cesium
       </div>
 
-      {/* Legend */}
-      {layers.some(l => l.enabled) && <div className="absolute top-24 right-4 bg-card/95 backdrop-blur-sm p-4 rounded-lg border border-border shadow-elevated max-w-xs py-[20px] mx-0 my-[20px]">
-          <h4 className="text-sm font-semibold mb-3 text-foreground">
-            Camadas Ativas
-          </h4>
-          <div className="space-y-2">
-            {layers.filter(l => l.enabled).map(layer => {
-          const Icon = layer.icon;
-          return <div key={layer.id} className="flex items-center gap-2">
-                    <Icon className="h-3 w-3" style={{
-              color: layer.color
-            }} />
-                    <span className="text-xs text-foreground">{layer.name}</span>
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      {layer.opacity}%
-                    </span>
-                  </div>;
-        })}
+      {/* Active layers legend */}
+      {layers.filter(l => l.enabled).length > 0 && (
+        <div className="absolute bottom-4 left-4 bg-background/90 p-3 rounded-lg border max-w-xs z-10">
+          <h4 className="text-xs font-semibold mb-2">Camadas Ativas</h4>
+          <div className="flex flex-wrap gap-1">
+            {layers.filter(l => l.enabled).map(layer => (
+              <div
+                key={layer.id}
+                className="text-xs px-2 py-1 rounded bg-primary/20 text-primary"
+              >
+                {layer.name}
+              </div>
+            ))}
           </div>
-        </div>}
-    </div>;
+        </div>
+      )}
+    </div>
+  );
 };
+
 export default MapView;

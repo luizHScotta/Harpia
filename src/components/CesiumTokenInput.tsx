@@ -4,24 +4,24 @@ import { Button } from "@/components/ui/button";
 import { Key } from "lucide-react";
 import { toast } from "sonner";
 
-const DEFAULT_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
+const DEFAULT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI1OGQ5MTdhYi1mNWRmLTQ5NGMtTEwOS02NmJlM2M1MzIxOWQiLCJpZCI6MiwiaWF0IjoxNjM0NTcyNTQzfQ.Cf055OJ6fdxw5NIBT0-JwD4aD9HjYQt9bf6CpadOGM";
 
-export const getMapboxToken = (): string => {
-  const saved = localStorage.getItem("mapbox_token");
+export const getCesiumToken = (): string => {
+  const saved = localStorage.getItem("cesium_token");
   return saved || DEFAULT_TOKEN;
 };
 
-export const MapboxTokenInput = () => {
+export const CesiumTokenInput = () => {
   const [token, setToken] = useState("");
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
-    setToken(getMapboxToken());
+    setToken(getCesiumToken());
   }, []);
 
   const handleSave = () => {
     if (token.trim()) {
-      localStorage.setItem("mapbox_token", token.trim());
+      localStorage.setItem("cesium_token", token.trim());
       toast.success("Token salvo! Recarregando mapa...");
       setIsEditing(false);
       setTimeout(() => {
@@ -31,7 +31,7 @@ export const MapboxTokenInput = () => {
   };
 
   const handleReset = () => {
-    localStorage.removeItem("mapbox_token");
+    localStorage.removeItem("cesium_token");
     setToken(DEFAULT_TOKEN);
     toast.success("Token resetado! Recarregando mapa...");
     setIsEditing(false);
@@ -49,14 +49,14 @@ export const MapboxTokenInput = () => {
         className="gap-2"
       >
         <Key className="h-4 w-4" />
-        Configurar Token Mapbox
+        Configurar Token Cesium
       </Button>
     );
   }
 
   return (
     <div className="flex flex-col gap-2 p-4 bg-background/95 rounded-lg border">
-      <label className="text-sm font-medium">Token do Mapbox</label>
+      <label className="text-sm font-medium">Token do Cesium</label>
       <Input
         type="text"
         value={token}
