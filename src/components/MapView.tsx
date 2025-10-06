@@ -260,15 +260,18 @@ const MapView = ({
           exaggeration: 2.5 
         });
 
-        // Add hillshade layer
+        // Add hillshade layer with elevation-based coloring
+        // Red = low elevation, Blue = high elevation
         if (!map.current.getLayer('hillshade')) {
           map.current.addLayer({
             id: 'hillshade',
             type: 'hillshade',
             source: 'mapbox-dem',
             paint: {
-              'hillshade-exaggeration': 0.3,
-              'hillshade-shadow-color': '#1a1a1a'
+              'hillshade-exaggeration': 0.5,
+              'hillshade-shadow-color': '#ff0000', // Red for valleys/low areas
+              'hillshade-highlight-color': '#0000ff', // Blue for peaks/high areas
+              'hillshade-accent-color': '#00ff00' // Green for mid-elevations
             }
           });
         }

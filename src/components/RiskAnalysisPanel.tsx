@@ -57,6 +57,7 @@ const RiskAnalysisPanel = ({ aoi, layers, searchResults, municipioId }: RiskAnal
         body: {
           aoi,
           layerData: activeLayers,
+          municipioId: municipioId || "1501402", // Default to Belém
           searchResults: searchResults?.map(r => ({
             collection: r.collection,
             datetime: r.datetime,
