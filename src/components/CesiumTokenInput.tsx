@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Key } from "lucide-react";
 import { toast } from "sonner";
 
-const DEFAULT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI1OGQ5MTdhYi1mNWRmLTQ5NGMtTEwOS02NmJlM2M1MzIxOWQiLCJpZCI6MiwiaWF0IjoxNjM0NTcyNTQzfQ.Cf055OJ6fdxw5NIBT0-JwD4aD9HjYQt9bf6CpadOGM";
+const DEFAULT_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJmOTYzOTVkMC00ZTliLTQyODktOGFkMS0xMDM2OTE0NzBkOTQiLCJpZCI6MzQ3NTg0LCJpYXQiOjE3NTk3MTc2Mjh9.m6zd8j7fGT05GULQygW_VEewpjyrJn4w6rJFWNmP6vY";
 
 export const getCesiumToken = (): string => {
   const saved = localStorage.getItem("cesium_token");

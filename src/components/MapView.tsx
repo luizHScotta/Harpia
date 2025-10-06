@@ -65,6 +65,8 @@ const MapView = ({
         animation: false,
         timeline: false,
         fullscreenButton: false,
+        requestRenderMode: false,
+        maximumRenderTimeChange: Infinity,
       });
 
       viewer.current = viewerInstance;
