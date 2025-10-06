@@ -22,16 +22,22 @@ export const MapboxTokenInput = () => {
   const handleSave = () => {
     if (token.trim()) {
       localStorage.setItem("mapbox_token", token.trim());
-      toast.success("Token do Mapbox salvo! Recarregue a página para aplicar.");
+      toast.success("Token salvo! Recarregando mapa...");
       setIsEditing(false);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     }
   };
 
   const handleReset = () => {
     localStorage.removeItem("mapbox_token");
     setToken(DEFAULT_TOKEN);
-    toast.success("Token resetado para o padrão! Recarregue a página para aplicar.");
+    toast.success("Token resetado! Recarregando mapa...");
     setIsEditing(false);
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
   };
 
   if (!isEditing) {
