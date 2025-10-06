@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Key } from "lucide-react";
 import { toast } from "sonner";
 
-const DEFAULT_TOKEN = "pk.eyJ1Ijoic2NvdGhpcyIsImEiOiJjaWp1Y2ltYmUwMDBicmJrdDQ4ZDBkaGN4In0.sbihZCZJ56-fsFNKHXF8YQ";
+const DEFAULT_TOKEN = "pk.eyJ1IjoidGFsaGFraHdqYTA2IiwiYSI6ImNsdTd60HptdTBhczgybGxsbWdmcjN6ZWwifQ.RBnwQKZHLwgUhnIh0LeP_g";
 
 export const getMapboxToken = (): string => {
   const saved = localStorage.getItem("mapbox_token");

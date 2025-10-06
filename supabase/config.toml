@@ -18,9 +18,6 @@ verify_jwt = false
 [functions.get-ibge-socioeconomic]
 verify_jwt = false
 
-[functions.get-observearth-data]
-verify_jwt = false
-
 [functions.search-planetary-data]
 verify_jwt = false
 
