@@ -450,6 +450,16 @@ export const defaultLayers: Layer[] = [
     enabled: false,
     opacity: 50,
     description: "Setores censitários IBGE"
+  },
+  {
+    id: "nasa-worldview",
+    name: "NASA World View",
+    category: "Óptico",
+    icon: Eye,
+    color: "hsl(220 70% 50%)",
+    enabled: false,
+    opacity: 80,
+    description: "Imagens satelitais NASA GIBS"
   }
 ];
 
