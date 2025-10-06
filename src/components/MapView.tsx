@@ -52,15 +52,10 @@ const MapView = ({
 
     console.log("🗺️ Inicializando Cesium...");
     
-    // Set Cesium Ion token
-    const token = getCesiumToken();
-    console.log("🔑 Token Cesium configurado:", token.substring(0, 20) + "...");
-    Cesium.Ion.defaultAccessToken = token;
-
     try {
-      // Create viewer with Cesium Ion imagery (requires valid token)
+      // Create viewer without imagery provider to avoid CORS/decoding issues
       const viewerInstance = new Cesium.Viewer(cesiumContainer.current, {
-        baseLayerPicker: true,
+        baseLayerPicker: false,
         geocoder: false,
         homeButton: true,
         sceneModePicker: false,
@@ -69,7 +64,15 @@ const MapView = ({
         timeline: false,
         fullscreenButton: false,
         terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+        skyBox: false,
+        skyAtmosphere: false,
       });
+
+      // Remove default imagery layer
+      viewerInstance.imageryLayers.removeAll();
+
+      // Add a solid color base
+      viewerInstance.scene.globe.baseColor = Cesium.Color.fromCssColorString('#1a1a2e');
 
       viewer.current = viewerInstance;
       
