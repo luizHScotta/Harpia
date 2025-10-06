@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useTheme } from "next-themes";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { CesiumTokenInput } from "./CesiumTokenInput";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,10 +93,6 @@ const Header = ({ onToggleSidebar, onExport, onToggleInfoPanel }: HeaderProps) =
                 {t("header.portuguese")}
               </span>
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <div className="px-2 py-2">
-              <CesiumTokenInput />
-            </div>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
