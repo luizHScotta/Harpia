@@ -58,8 +58,9 @@ const MapView = ({
     Cesium.Ion.defaultAccessToken = token;
 
     try {
+      // Create viewer with Cesium Ion imagery (requires valid token)
       const viewerInstance = new Cesium.Viewer(cesiumContainer.current, {
-        baseLayerPicker: false,
+        baseLayerPicker: true,
         geocoder: false,
         homeButton: true,
         sceneModePicker: false,
@@ -69,16 +70,6 @@ const MapView = ({
         fullscreenButton: false,
         terrainProvider: new Cesium.EllipsoidTerrainProvider(),
       });
-
-      // Use OpenStreetMap as base layer (no authentication required)
-      viewerInstance.imageryLayers.removeAll();
-      viewerInstance.imageryLayers.addImageryProvider(
-        new Cesium.UrlTemplateImageryProvider({
-          url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          maximumLevel: 19,
-          credit: new Cesium.Credit('© OpenStreetMap contributors')
-        })
-      );
 
       viewer.current = viewerInstance;
       
