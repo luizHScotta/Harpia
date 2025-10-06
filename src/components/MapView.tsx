@@ -8,9 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Box, Cuboid } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-
-// Mapbox token configured
-const MAPBOX_TOKEN = "pk.eyJ1IjoiYW5kcmV3b2J4IiwiYSI6ImNtMWh2MXZ5eDBqNnQyeG9za2R1N2lwc2YifQ.7yCrlwa4nNFKpg2TcQoFQg";
+import { getMapboxToken } from "./MapboxTokenInput";
 interface MapViewProps {
   layers: Layer[];
   onFeatureClick: (data: any) => void;
@@ -45,7 +43,7 @@ const MapView = ({
     if (!mapContainer.current || map.current) return;
     
     console.log("🗺️ Inicializando Mapbox...");
-    mapboxgl.accessToken = MAPBOX_TOKEN;
+    mapboxgl.accessToken = getMapboxToken();
     
     try {
       map.current = new mapboxgl.Map({
