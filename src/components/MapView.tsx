@@ -53,7 +53,9 @@ const MapView = ({
     console.log("🗺️ Inicializando Cesium...");
     
     // Set Cesium Ion token
-    Cesium.Ion.defaultAccessToken = getCesiumToken();
+    const token = getCesiumToken();
+    console.log("🔑 Token Cesium configurado:", token.substring(0, 20) + "...");
+    Cesium.Ion.defaultAccessToken = token;
 
     try {
       const viewerInstance = new Cesium.Viewer(cesiumContainer.current, {
@@ -65,9 +67,18 @@ const MapView = ({
         animation: false,
         timeline: false,
         fullscreenButton: false,
-        requestRenderMode: false,
-        maximumRenderTimeChange: Infinity,
+        terrainProvider: new Cesium.EllipsoidTerrainProvider(),
       });
+
+      // Use OpenStreetMap as base layer (no authentication required)
+      viewerInstance.imageryLayers.removeAll();
+      viewerInstance.imageryLayers.addImageryProvider(
+        new Cesium.UrlTemplateImageryProvider({
+          url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          maximumLevel: 19,
+          credit: new Cesium.Credit('© OpenStreetMap contributors')
+        })
+      );
 
       viewer.current = viewerInstance;
       
